@@ -9,8 +9,12 @@ import io
 
 print("Loading models into memory...")
 
-rembg_session = new_session("birefnet-portrait")
-yolo_model = YOLO('best.pt')
+
+def load_models():
+    global rembg_session, yolo_model
+    print("Loading models into memory...")
+    rembg_session = new_session("birefnet-portrait")
+    yolo_model = YOLO('best.pt')
 
 def create_passport_photo(image_bytes: bytes) -> bytes:
     """
@@ -18,7 +22,6 @@ def create_passport_photo(image_bytes: bytes) -> bytes:
     and returns the processed image as JPEG bytes.
     """
     
-    # Convert incoming bytes to a numpy array, then decode into an OpenCV image
     nparr = np.frombuffer(image_bytes, np.uint8)
     original_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     
@@ -27,15 +30,12 @@ def create_passport_photo(image_bytes: bytes) -> bytes:
 
     H, W = original_img.shape[:2]
 
-    # ── BRANCH 1: rembg on the FULL image ──────────────────────────────────
-    print("rembg on full image (birefnet-portrait)...")
     full_pil = Image.fromarray(cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB))
     rembg_full = remove(full_pil, session=rembg_session)
     rembg_np   = np.array(rembg_full)           # (H, W, 4) RGBA
     rembg_alpha = rembg_np[:, :, 3].astype(np.float32) / 255.0
 
-    # ── BRANCH 2: YOLO segmentation pass ───────────────────────────────────
-    print("YOLO segmentation pass...")
+
     results = yolo_model.predict(original_img, conf=0.1, verbose=False)
 
     if len(results[0].boxes) == 0:
@@ -58,7 +58,10 @@ def create_passport_photo(image_bytes: bytes) -> bytes:
         yolo_alpha = np.zeros((H, W), dtype=np.float32)
         yolo_alpha[y1:y2, x1:x2] = 1.0
 
-    # ── UNION / INTERSECTION blend ─────────────────────────────────────────
+
+
+
+# combine the two alpha mattes
     print("Merging alphas...")
     kernel   = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))
     yolo_bin = (yolo_alpha > 0.5).astype(np.uint8)
@@ -80,11 +83,9 @@ def create_passport_photo(image_bytes: bytes) -> bytes:
     final_alpha_u8 = (final_alpha * 255).astype(np.uint8)
     final_alpha_u8 = cv2.GaussianBlur(final_alpha_u8, (7, 7), 0)
 
-    # ── Composite ──────────────────────────────────────────────────────────
     result_rgba = rembg_np.copy()
     result_rgba[:, :, 3] = final_alpha_u8
 
-    # ── Crop to bounding box ───────────────────────────────────────────────
     print("Cropping...")
     box = results[0].boxes[0].xyxy[0].cpu().numpy()
     x1, y1, x2, y2 = map(int, box)

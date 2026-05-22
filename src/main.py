@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api import router as api_router
 from services.image_processor import load_models
+from contextlib import asynccontextmanager
 
 
 @asynccontextmanager
