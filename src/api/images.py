@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Response
-from src.services.image_processor import create_passport_photo
+from services.image_processor import create_passport_photo
 
 router = APIRouter()
 
