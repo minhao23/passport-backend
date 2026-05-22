@@ -1,10 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api import router as api_router
+from services.image_processor import load_models
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Server is starting up...")
+    load_models() 
+    print("Models loaded successfully!")
+    yield
+    print("Server is shutting down...")
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 origins = [
     "http://localhost",
