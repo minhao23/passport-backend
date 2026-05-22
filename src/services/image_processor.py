@@ -8,7 +8,7 @@ from rembg import remove, new_session
 import io
 
 print("Loading models into memory...")
-# Load models globally so they don't re-initialize on every API call
+
 rembg_session = new_session("birefnet-portrait")
 yolo_model = YOLO('best.pt')
 
@@ -95,12 +95,11 @@ def create_passport_photo(image_bytes: bytes) -> bytes:
 
     transparent_result = Image.fromarray(cropped, 'RGBA')
 
-    # ── White background ───────────────────────────────────────────────────
     print("White background composite...")
     white_bg = Image.new("RGB", transparent_result.size, (255, 255, 255))
     white_bg.paste(transparent_result, (0, 0), transparent_result)
     
-    # Save the result to a byte buffer instead of a file path
+
     img_byte_arr = io.BytesIO()
     white_bg.save(img_byte_arr, format='JPEG')
     
