@@ -7,8 +7,9 @@ from ultralytics import YOLO
 from rembg import remove, new_session
 import io
 
-print("Loading models into memory...")
+from utils.passport_sizes import passport_photo_sizes_mm
 
+print("Loading models into memory...")
 
 def load_models():
     global rembg_session, yolo_model
@@ -16,11 +17,18 @@ def load_models():
     rembg_session = new_session("birefnet-portrait")
     yolo_model = YOLO('best.pt')
 
-def create_passport_photo(image_bytes: bytes) -> bytes:
+def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
     """
-    Takes raw image bytes, processes them into a passport photo with a white background,
-    and returns the processed image as JPEG bytes.
+    Takes raw image bytes and a country string, processes them into a passport photo 
+    with a white background, preserves aspect ratio (diagonal scaling), and 
+    ensures the person is grounded at the bottom, maxing out either the width or 
+    the 75% face-height rule.
     """
+    if country not in passport_photo_sizes_mm:
+        raise ValueError(f"Country '{country}' not found in database.")
+        
+    target_w_mm, target_h_mm = passport_photo_sizes_mm[country]
+    target_ratio = target_w_mm / target_h_mm
     
     nparr = np.frombuffer(image_bytes, np.uint8)
     original_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -30,12 +38,13 @@ def create_passport_photo(image_bytes: bytes) -> bytes:
 
     H, W = original_img.shape[:2]
 
+    # Process Background Removal
     full_pil = Image.fromarray(cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB))
     rembg_full = remove(full_pil, session=rembg_session)
     rembg_np   = np.array(rembg_full)           # (H, W, 4) RGBA
     rembg_alpha = rembg_np[:, :, 3].astype(np.float32) / 255.0
 
-
+    # Process YOLO Face Detection
     results = yolo_model.predict(original_img, conf=0.1, verbose=False)
 
     if len(results[0].boxes) == 0:
@@ -58,10 +67,7 @@ def create_passport_photo(image_bytes: bytes) -> bytes:
         yolo_alpha = np.zeros((H, W), dtype=np.float32)
         yolo_alpha[y1:y2, x1:x2] = 1.0
 
-
-
-
-# combine the two alpha mattes
+    # Merge Alphas
     print("Merging alphas...")
     kernel   = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))
     yolo_bin = (yolo_alpha > 0.5).astype(np.uint8)
@@ -69,7 +75,6 @@ def create_passport_photo(image_bytes: bytes) -> bytes:
     dilated  = cv2.dilate(yolo_bin, kernel, iterations=2)   
 
     final_alpha = np.zeros((H, W), dtype=np.float32)
-
     final_alpha[eroded == 1] = rembg_alpha[eroded == 1]
 
     transition = (dilated == 1) & (eroded == 0)
@@ -86,22 +91,60 @@ def create_passport_photo(image_bytes: bytes) -> bytes:
     result_rgba = rembg_np.copy()
     result_rgba[:, :, 3] = final_alpha_u8
 
-    print("Cropping...")
-    box = results[0].boxes[0].xyxy[0].cpu().numpy()
-    x1, y1, x2, y2 = map(int, box)
-    padding = 20
-    x1, y1 = max(0, x1 - padding), max(0, y1 - padding)
-    x2, y2 = min(W, x2 + padding), min(H, y2 + padding)
-    cropped = result_rgba[y1:y2, x1:x2]
-
-    transparent_result = Image.fromarray(cropped, 'RGBA')
-
-    print("White background composite...")
-    white_bg = Image.new("RGB", transparent_result.size, (255, 255, 255))
-    white_bg.paste(transparent_result, (0, 0), transparent_result)
+# ==========================================================
+    # SMART CROPPING & DIAGONAL SCALING LOGIC
+    # ==========================================================
+    print("Calculating Proportions...")
     
+    # 1. Get the absolute pixel bounds of the person's body from our alpha mask
+    # This is much more accurate than the YOLO box because it perfectly wraps the visible pixels
+    y_idx, x_idx = np.where(final_alpha > 0)
+    if len(y_idx) > 0:
+        px1, px2 = np.min(x_idx), np.max(x_idx)
+        py1, py2 = np.min(y_idx), np.max(y_idx) # py1 = top of hair, py2 = lowest visible pixel
+    else:
+        px1, px2, py1, py2 = 0, W, 0, H
+
+    center_x = px1 + ((px2 - px1) / 2.0)
+
+    # 2. The Flawless Passport Math:
+    # We want the person to span exactly from the 10% top margin down to the 0% bottom edge.
+    # This means the person's visible height must equal exactly 90% of the canvas height.
+    person_h = py2 - py1
+    canvas_h = person_h / 0.90
+    canvas_w = canvas_h * target_ratio
+    
+    canvas_w, canvas_h = int(canvas_w), int(canvas_h)
+
+    # Convert the isolated person to a full PIL image
+    transparent_full = Image.fromarray(result_rgba, 'RGBA')
+
+    # Create a pure white canvas that mathematically matches our target Aspect Ratio perfectly
+    white_bg = Image.new("RGB", (canvas_w, canvas_h), (255, 255, 255))
+    
+    # 3. Calculate exact placements
+    # Horizontal: Center the person perfectly in the middle
+    paste_x = int((canvas_w / 2) - center_x)
+    
+    # Vertical: Anchor the absolute lowest pixel of the person to the absolute bottom of the canvas
+    paste_y = int(canvas_h - py2)
+    
+    # Paste the person onto the white canvas
+    # The shoulders will naturally extend outward and get cleanly cropped by the left/right edges!
+    white_bg.paste(transparent_full, (paste_x, paste_y), transparent_full)
+    
+    # ==========================================================
+    # FINAL EXPORT
+    # ==========================================================
+    print("Exporting...")
+
+    pixels_per_mm = 11.81
+    final_pixel_w = int(target_w_mm * pixels_per_mm)
+    final_pixel_h = int(target_h_mm * pixels_per_mm)
+    
+    final_img = white_bg.resize((final_pixel_w, final_pixel_h), Image.Resampling.LANCZOS)
 
     img_byte_arr = io.BytesIO()
-    white_bg.save(img_byte_arr, format='JPEG')
+    final_img.save(img_byte_arr, format='JPEG', quality=95)
     
     return img_byte_arr.getvalue()
