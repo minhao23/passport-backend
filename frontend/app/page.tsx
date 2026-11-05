@@ -162,7 +162,13 @@ export default function Home() {
         </div>
         <div className="submission-note"><Info size={17} /><p><strong>Before you submit.</strong> We resize and remove the background, but acceptance isn&apos;t guaranteed. Check your issuing authority&apos;s current rules on head size, expression, head coverings, and photo editing.</p></div>
       </section>
-      <footer className="wrap"><a href="#" className="brand" aria-label="Passport Studio home">Passport Studio</a><span>A small photo for whatever&apos;s next.</span><a href="#studio">Back to your photo <ArrowRight size={15} /></a></footer>
+      <footer className="wrap">
+        <a href="#" className="brand" aria-label="Passport Studio home">Passport Studio</a>
+        <a className="footer-credit" href="https://minhao.vercel.app" target="_blank" rel="noopener noreferrer">
+          Contact me<span className="sr-only"> (opens in a new tab)</span>
+        </a>
+        <a href="#studio">Back to your photo <ArrowRight size={15} /></a>
+      </footer>
     </main>
   );
 }
