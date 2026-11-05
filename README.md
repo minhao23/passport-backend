@@ -25,16 +25,24 @@ Run all commands below from the repository root.
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-pip install "rembg[cpu]" Pillow
-uvicorn main:app --app-dir src --host 127.0.0.1 --port 8000
+npm run dev:backend
 ```
 
-The existing requirements file does not include `rembg` or explicitly include
-Pillow, so install them separately as shown. The first launch may download
-the BiRefNet portrait model and take longer than subsequent launches. Keep
-`best.pt` at the repository root: the existing backend loads it relative to
-the working directory. Wait for application startup to finish before generating.
+Alternatively, with `uv` installed, create the environment with
+`uv venv --python 3.11 .venv` and install with
+`uv pip install --python .venv/bin/python -r requirements.txt`.
+`npm run dev:backend` uses that local environment directly.
+It stores downloaded models in `.venv/model-cache` and Ultralytics settings
+in `.venv/ultralytics`, avoiding writes to global configuration directories.
+Set `U2NET_HOME` or `YOLO_CONFIG_DIR` to use an existing cache instead.
+
+The requirements include `rembg[cpu]` and Pillow. The first launch downloads
+the approximately 1 GB BiRefNet portrait model and takes longer than subsequent launches. Keep
+`best.pt` at the repository root; its path is resolved from the backend source,
+independent of the working directory. Wait for application startup to finish before generating.
 FastAPI's interactive API documentation is at http://127.0.0.1:8000/docs.
+Once both models have loaded, http://127.0.0.1:8000/health returns
+`{"status":"ready"}`.
 
 ### 2. Start Next.js in a second terminal
 
@@ -100,7 +108,5 @@ processor does not verify all country-specific passport rules or guarantee
 acceptance. Always check the issuing authority's latest rules, including
 restrictions on digitally edited photos.
 
-The decorative hero portrait uses a generated remote image; it is illustrative,
-not a sample result from the processing pipeline. User previews use local
-object URLs. Google Fonts supplies the page fonts, with local sans-serif
+User previews use local object URLs. Google Fonts supplies the page fonts, with local sans-serif
 fallbacks if unavailable.

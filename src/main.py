@@ -15,6 +15,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+
+@app.get("/health")
+def health():
+    # Requests are served only after lifespan has loaded both models.
+    return {"status": "ready"}
+
+
 origins = [
     "http://localhost",
     "http://localhost:8000",

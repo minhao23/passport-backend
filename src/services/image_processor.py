@@ -6,6 +6,7 @@ from PIL import Image
 from ultralytics import YOLO
 from rembg import remove, new_session
 import io
+from pathlib import Path
 
 from utils.passport_sizes import passport_photo_sizes_mm
 from errors import (
@@ -18,13 +19,13 @@ from errors import (
     SubjectTooSmallError,
 )
 
-print("Loading models into memory...")
+MODEL_PATH = Path(__file__).resolve().parents[2] / "best.pt"
 
 def load_models():
     global rembg_session, yolo_model
     print("Loading models into memory...")
     rembg_session = new_session("birefnet-portrait")
-    yolo_model = YOLO('best.pt')
+    yolo_model = YOLO(str(MODEL_PATH))
 
 def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
     """
