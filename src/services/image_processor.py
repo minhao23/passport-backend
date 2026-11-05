@@ -6,16 +6,26 @@ from PIL import Image
 from ultralytics import YOLO
 from rembg import remove, new_session
 import io
+from pathlib import Path
 
 from utils.passport_sizes import passport_photo_sizes_mm
+from errors import (
+    EmptyPhotoError,
+    InvalidCountryError,
+    InvalidPhotoError,
+    LowConfidenceError,
+    PersonNotDetectedError,
+    SubjectSeparationError,
+    SubjectTooSmallError,
+)
 
-print("Loading models into memory...")
+MODEL_PATH = Path(__file__).resolve().parents[2] / "best.pt"
 
 def load_models():
     global rembg_session, yolo_model
     print("Loading models into memory...")
     rembg_session = new_session("birefnet-portrait")
-    yolo_model = YOLO('best.pt')
+    yolo_model = YOLO(str(MODEL_PATH))
 
 def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
     """
@@ -25,16 +35,21 @@ def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
     the 75% face-height rule.
     """
     if country not in passport_photo_sizes_mm:
-        raise ValueError(f"Country '{country}' not found in database.")
+        raise InvalidCountryError()
         
     target_w_mm, target_h_mm = passport_photo_sizes_mm[country]
     target_ratio = target_w_mm / target_h_mm
     
     nparr = np.frombuffer(image_bytes, np.uint8)
-    original_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    if not nparr.size:
+        raise EmptyPhotoError()
+    try:
+        original_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    except cv2.error as exc:
+        raise InvalidPhotoError() from exc
     
     if original_img is None:
-        raise ValueError("Could not decode the uploaded image.")
+        raise InvalidPhotoError()
 
     H, W = original_img.shape[:2]
 
@@ -48,13 +63,15 @@ def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
     results = yolo_model.predict(original_img, conf=0.1, verbose=False)
 
     if len(results[0].boxes) == 0:
-        raise Exception("No person detected")
+        raise PersonNotDetectedError()
 
     best_conf  = results[0].boxes.conf[0].item()
     best_class = int(results[0].boxes.cls[0].item())
     
-    if best_class != 0 or best_conf < 0.65:
-        raise Exception("Confidence too low or wrong class")
+    if best_class != 0:
+        raise PersonNotDetectedError()
+    if best_conf < 0.65:
+        raise LowConfidenceError()
 
     masks = results[0].masks
     if masks is not None:
@@ -103,7 +120,7 @@ def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
         px1, px2 = np.min(x_idx), np.max(x_idx)
         py1, py2 = np.min(y_idx), np.max(y_idx) # py1 = top of hair, py2 = lowest visible pixel
     else:
-        px1, px2, py1, py2 = 0, W, 0, H
+        raise SubjectSeparationError()
 
     center_x = px1 + ((px2 - px1) / 2.0)
 
@@ -115,6 +132,8 @@ def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
     canvas_w = canvas_h * target_ratio
     
     canvas_w, canvas_h = int(canvas_w), int(canvas_h)
+    if canvas_w < 1 or canvas_h < 1:
+        raise SubjectTooSmallError()
 
     # Convert the isolated person to a full PIL image
     transparent_full = Image.fromarray(result_rgba, 'RGBA')

@@ -1,0 +1,12 @@
+{
+  "name": "passport-studio",
+  "private": true,
+  "workspaces": ["frontend"],
+  "scripts": {
+    "dev": "npm run dev --workspace frontend",
+    "dev:backend": "U2NET_HOME=${U2NET_HOME:-.venv/model-cache} YOLO_CONFIG_DIR=${YOLO_CONFIG_DIR:-.venv/ultralytics} .venv/bin/python -m uvicorn main:app --app-dir src --host 127.0.0.1 --port 8000",
+    "build": "npm run build --workspace frontend",
+    "start": "npm run start --workspace frontend",
+    "typecheck": "npm run typecheck --workspace frontend"
+  }
+}

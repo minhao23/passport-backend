@@ -3,7 +3,19 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-node_modules/
 # Virtual environments
 venv/
 env/
+
+# Next.js / Node
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+.env*
+!.env.example
+.venv/
+
+# macOS metadata
+.DS_Store
