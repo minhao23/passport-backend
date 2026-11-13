@@ -1,0 +1,15 @@
+**
+!Dockerfile.frontend
+!Dockerfile.frontend.dockerignore
+!package.json
+!package-lock.json
+!frontend/
+!frontend/**
+
+**/node_modules/
+**/.next/
+**/out/
+**/.env*
+**/*.tsbuildinfo
+**/next-env.d.ts
+**/.DS_Store

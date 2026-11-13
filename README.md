@@ -13,6 +13,7 @@ best.pt            Trained YOLO checkpoint
 requirements.txt   Existing Python dependencies
 package.json       npm workspace and frontend scripts
 Dockerfile.backend Backend-only production image
+Dockerfile.frontend Frontend-only production image
 ```
 
 ## Local development
@@ -200,6 +201,75 @@ suite starts the built production Next.js app and an isolated upstream stub
 on temporary localhost ports; it checks multipart limits, busy/error mapping,
 and cancellation without sending photos to an external service. Its stalled
 upload regression deliberately takes 60 seconds to exercise the real deadline.
+
+### Frontend deployment with Docker
+
+Deploy the frontend with `Dockerfile.frontend` and its companion
+`Dockerfile.frontend.dockerignore`. Build from the repository root so Docker
+can access the npm workspace manifests and root lockfile. This service uses
+Node.js, not the Python runtime in `Dockerfile.backend`.
+
+Use these frontend service settings:
+
+| Setting | Value |
+| --- | --- |
+| Build strategy | Dockerfile |
+| Site/output type | Non-static web application (Node.js server) |
+| Base directory / build context | `/` (repository root) |
+| Dockerfile path | `Dockerfile.frontend` relative to the repository root |
+| Install/build/start overrides | Leave blank; supplied by the Dockerfile |
+| Application port | `3000` |
+| Static publish directory / static Nginx server | Not used |
+| Pre/post-deployment commands | Leave blank |
+| Health-check path | `/` |
+
+If the platform displays Dockerfile paths with a leading slash, enter
+`/Dockerfile.frontend`. Remove stale `RAILPACK_*` environment variables from
+the frontend service. No Railpack configuration or runtime detection is used.
+Do not deploy as a static Nginx site: `/api/process` must run on the Next.js
+server.
+
+The multi-stage image installs Node.js 22 and workspace dependencies with
+`npm ci`, then runs the existing `npm run build` script. The runtime image
+contains production dependencies, the compiled Next.js output, and public
+assets. It runs Next.js directly as the non-root `node` user so shutdown
+signals reach the server. Build caches, backend code/models, local `.env`
+files, and local Node installations are not included in the runtime image.
+
+Set `BACKEND_URL` in the frontend service's runtime environment to the backend's
+reachable base URL. Prefer a private internal address, or HTTPS when using a
+public address. Do not prefix it with `NEXT_PUBLIC_`; the API route reads it
+server-side at request time. It is not required during `docker build` and
+should not be passed as a build argument. Restart/redeploy the frontend after
+changing it. Keep `PORT` at `3000`, or match the application routing port if
+overriding it.
+
+Build locally from the repository root:
+
+```bash
+docker build -f Dockerfile.frontend -t passport-frontend:local .
+```
+
+For a backend listening on the Mac host at port 8000, run the frontend using
+Docker Desktop's host address. This example uses local port 3001 so an existing
+development server on port 3000 can keep running:
+
+```bash
+docker run --detach --name passport-frontend \
+  --restart unless-stopped \
+  --publish 127.0.0.1:3001:3000 \
+  --env BACKEND_URL=http://host.docker.internal:8000 \
+  passport-frontend:local
+docker logs -f passport-frontend
+```
+
+Open `http://127.0.0.1:3001`. For separate frontend and backend containers,
+place both on a shared Docker network and use the backend's network hostname
+instead, such as `http://passport-backend:8000`. `localhost` inside the frontend
+container does not refer to the backend container.
+
+The built-in health check requests `/` and checks frontend availability only;
+it does not verify connectivity to FastAPI or run image processing.
 
 ### Backend deployment with Docker
 
