@@ -2,24 +2,35 @@ import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from ultralytics import YOLO
 from rembg import remove, new_session
 import io
 from pathlib import Path
+from threading import Event, Lock
 
 from utils.passport_sizes import passport_photo_sizes_mm
+from utils.image_headers import check_dimensions, check_webp_header
+from utils.limits import (
+    ACCEPTED_IMAGE_FORMATS,
+    MAX_FILE_BYTES,
+    MAX_WORKING_SIDE,
+)
 from errors import (
     EmptyPhotoError,
     InvalidCountryError,
     InvalidPhotoError,
+    ImageDimensionsError,
     LowConfidenceError,
     PersonNotDetectedError,
+    ProcessingCancelledError,
     SubjectSeparationError,
     SubjectTooSmallError,
+    UploadTooLargeError,
 )
 
 MODEL_PATH = Path(__file__).resolve().parents[2] / "best.pt"
+yolo_lock = Lock()
 
 def load_models():
     global rembg_session, yolo_model
@@ -27,22 +38,46 @@ def load_models():
     rembg_session = new_session("birefnet-portrait")
     yolo_model = YOLO(str(MODEL_PATH))
 
-def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
+def create_passport_photo(
+    image_bytes: bytes, country: str, cancelled: Event | None = None
+) -> bytes:
     """
     Takes raw image bytes and a country string, processes them into a passport photo 
     with a white background, preserves aspect ratio (diagonal scaling), and 
     ensures the person is grounded at the bottom, maxing out either the width or 
     the 75% face-height rule.
     """
+    def check_cancelled():
+        if cancelled is not None and cancelled.is_set():
+            raise ProcessingCancelledError()
+
+    check_cancelled()
     if country not in passport_photo_sizes_mm:
         raise InvalidCountryError()
         
     target_w_mm, target_h_mm = passport_photo_sizes_mm[country]
     target_ratio = target_w_mm / target_h_mm
     
-    nparr = np.frombuffer(image_bytes, np.uint8)
-    if not nparr.size:
+    if not image_bytes:
         raise EmptyPhotoError()
+    if len(image_bytes) > MAX_FILE_BYTES:
+        raise UploadTooLargeError()
+    check_webp_header(image_bytes)
+    try:
+        # Restrict plugins: unsupported formats must not allocate during open.
+        with Image.open(io.BytesIO(image_bytes), formats=list(ACCEPTED_IMAGE_FORMATS)) as header:
+            if header.format not in ACCEPTED_IMAGE_FORMATS:
+                raise InvalidPhotoError()
+            width, height = header.size
+            check_dimensions(width, height)
+    except Image.DecompressionBombError as exc:
+        raise ImageDimensionsError() from exc
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        if isinstance(exc, (InvalidPhotoError, ImageDimensionsError)):
+            raise
+        raise InvalidPhotoError() from exc
+
+    nparr = np.frombuffer(image_bytes, np.uint8)
     try:
         original_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     except cv2.error as exc:
@@ -52,15 +87,31 @@ def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
         raise InvalidPhotoError()
 
     H, W = original_img.shape[:2]
+    check_dimensions(W, H)
+    if max(H, W) > MAX_WORKING_SIDE:
+        scale = MAX_WORKING_SIDE / max(H, W)
+        original_img = cv2.resize(
+            original_img, (max(1, round(W * scale)), max(1, round(H * scale))),
+            interpolation=cv2.INTER_AREA,
+        )
+        H, W = original_img.shape[:2]
 
     # Process Background Removal
+    check_cancelled()
     full_pil = Image.fromarray(cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB))
     rembg_full = remove(full_pil, session=rembg_session)
+    # Native inference cannot be interrupted; skip subsequent stages on cancel.
+    check_cancelled()
     rembg_np   = np.array(rembg_full)           # (H, W, 4) RGBA
     rembg_alpha = rembg_np[:, :, 3].astype(np.float32) / 255.0
 
-    # Process YOLO Face Detection
-    results = yolo_model.predict(original_img, conf=0.1, verbose=False)
+    # Process YOLO Person Detection
+    # YOLO initializes and mutates its shared predictor outside its internal
+    # inference lock. Serialize this stage, not the whole photo pipeline.
+    with yolo_lock:
+        check_cancelled()
+        results = yolo_model.predict(original_img, conf=0.1, verbose=False)
+    check_cancelled()
 
     if len(results[0].boxes) == 0:
         raise PersonNotDetectedError()
@@ -85,6 +136,7 @@ def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
         yolo_alpha[y1:y2, x1:x2] = 1.0
 
     # Merge Alphas
+    check_cancelled()
     print("Merging alphas...")
     kernel   = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))
     yolo_bin = (yolo_alpha > 0.5).astype(np.uint8)
@@ -112,6 +164,7 @@ def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
     # SMART CROPPING & DIAGONAL SCALING LOGIC
     # ==========================================================
     print("Calculating Proportions...")
+    check_cancelled()
     
     # 1. Get the absolute pixel bounds of the person's body from our alpha mask
     # This is much more accurate than the YOLO box because it perfectly wraps the visible pixels
@@ -156,6 +209,7 @@ def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
     # FINAL EXPORT
     # ==========================================================
     print("Exporting...")
+    check_cancelled()
 
     pixels_per_mm = 11.81
     final_pixel_w = int(target_w_mm * pixels_per_mm)
@@ -165,5 +219,6 @@ def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
 
     img_byte_arr = io.BytesIO()
     final_img.save(img_byte_arr, format='JPEG', quality=95)
-    
+    check_cancelled()
+
     return img_byte_arr.getvalue()

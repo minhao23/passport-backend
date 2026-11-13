@@ -1,8 +1,8 @@
 # Passport Studio
 
 A monorepo containing the Python/FastAPI image processor and a Next.js
-App Router frontend. Image-processing calculations are unchanged; expected
-photo failures now use typed exceptions and user-facing error codes.
+App Router frontend. Uploads and processing capacity are bounded; expected
+photo failures use typed exceptions and user-facing error codes.
 
 ## Repository
 
@@ -56,6 +56,22 @@ Open http://localhost:3000. Select a country, upload a JPG, PNG, or WebP
 of up to 10 MB, generate a photo, and download the resulting JPEG.
 The original upload is previewed separately from the generated result.
 Changing the country or upload clears the previous result.
+Uploads must also be at most 20 megapixels, with neither side exceeding
+10,000 pixels. Accepted images are reduced proportionally to a maximum
+2,048-pixel working side before model processing. WebP must be a still image;
+its container and bitstream dimensions are checked before opening a decoder.
+
+After selection, use **Change photo** below Generate or beside the original
+preview to choose a replacement. Invalid replacements leave the current photo
+intact. **Remove photo** returns to the upload state.
+
+During generation, **Cancel processing** keeps the original photo available
+for replacement or retry and discards any late response. The proxy forwards
+the disconnect to FastAPI. A waiting photo is removed from the queue without
+running the model. For an active photo, FastAPI checks for cancellation between
+processing stages. A native model inference already in progress finishes its current
+call before stopping; cancellation does not forcibly kill the shared model.
+Restart the backend after updating it to enable these cancellation checkpoints.
 
 `BACKEND_URL` is server-only and defaults to `http://127.0.0.1:8000`.
 Restart Next.js after changing it. The browser sends multipart requests to
@@ -94,6 +110,14 @@ FastAPI returns JSON with `code` and `detail` for processing failures:
 | `PERSON_NOT_DETECTED` | 422 | No detection or the detected class is not the target subject |
 | `INTERNAL_SERVER_ERROR` | 500 | Unexpected processing failure; details are logged server-side |
 | `INVALID_COUNTRY` | 400 | Unsupported country |
+| `PHOTO_ISSUE` | 413 | File, total request, or decoded dimensions exceed limits |
+| `PHOTO_ISSUE` | 408 | Upload did not finish within 60 seconds |
+| `SERVICE_BUSY` | 503 | Upload/queue capacity is full, or queue wait exceeded 180 seconds; retry later |
+
+The trained checkpoint detects **people**, not faces. An image with no
+detected person returns `PERSON_NOT_DETECTED` (422); a person with an obscured
+or invisible face can still pass. This is not facial-visibility or passport
+compliance validation.
 
 The Next.js proxy keeps these categories and adds a display title. Connection,
 timeout, unexpected response, and unknown server errors use
@@ -106,19 +130,75 @@ recognizes the original backend's known detection/decode error messages.
 ## Checks and production
 
 ```bash
+PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v
 npm run typecheck
 npm run build
+node --test tests/frontend_limits.test.mjs
 npm run start
 ```
 
 Deploy the Next.js app as a Node.js service, not a static export. Deploy FastAPI
-separately and set `BACKEND_URL` to its reachable address. Allow at least three
-minutes for inference requests and configure infrastructure upload limits for
-10 MB files plus multipart overhead. Hosted serverless providers may impose
+separately and set `BACKEND_URL` to its reachable address. Configure infrastructure
+request/idle timeouts to allow the queued request to remain open: the Next.js
+upstream timeout is 430 seconds and the browser timeout is 500 seconds, including
+upload and response allowances. Configure upload limits for 10 MiB files plus
+64 KiB multipart overhead. Uploads have a separate 60-second deadline.
+Hosted serverless providers may impose
 smaller request limits or execution timeouts; use a long-running Node service
 or adapt the upload architecture for those providers. This frontend validates
-files but does not add authentication, rate limiting, or resource limits to
-the Python service.
+files but does not add authentication or per-client rate limiting.
+
+Both services enforce total streamed request bytes, including chunked uploads
+without `Content-Length`. FastAPI additionally enforces the selected-file
+limit, allowed MIME types, actual image formats, and decoded dimension limits.
+The Node service sends upload-rejection JSON before disposing unread bytes.
+Post-response cleanup discards, without buffering, at most twice the request
+limit plus one stream chunk and waits at most one second before cancellation.
+It retains the admission slot during this bounded cleanup.
+The Next.js process admits at most four active upload/processing requests.
+Each FastAPI process admits at most four photos before multipart parsing and
+runs two photo-processing jobs concurrently. When both workers are occupied, up to two other
+photos may upload or wait. Completed, validated uploads take worker slots in
+FIFO order; a slow upload does not prevent a ready photo from running.
+The workers are threads in the same process and share the loaded models.
+Background removal can overlap; the YOLO prediction stage is locked because
+its predictor setup and arguments are mutable shared state. A photo cancelled
+while waiting for this lock is checked again before YOLO runs.
+
+Waiting photos stay in Starlette's bounded upload files (large files spool to
+temporary disk). The endpoint reads the selected file into a bytes buffer only
+after receiving a worker slot. It then returns the JPEG over the original HTTP
+request, so the existing loading screen and Cancel button continue to work.
+There is no separate job ID, queue-position display, or polling endpoint.
+
+A photo may wait up to 180 seconds for a worker. Queue-full and queue-timeout
+responses return 503, `SERVICE_BUSY`, and `Retry-After: 10`; this is a retry
+suggestion, not automatic retry or a per-user cooldown. Cancelled or timed-out
+waiters are removed from the queue and do not run later. An active native job
+retains its worker slot until it actually finishes, even if its HTTP request
+is cancelled. Native model calls are not forcibly terminated.
+
+This queue is in-process and not durable: restarting or terminating the backend
+loses pending work, and users must resubmit. There is no RabbitMQ, Redis, or
+cross-process coordination. `MAX_ACTIVE_JOBS`, `MAX_WAITING_JOBS`, and
+`MAX_QUEUE_WAIT_SECONDS` in `src/utils/limits.py` set the active concurrency
+(two), waiting capacity (two), and queue deadline. Keep the frontend's
+four-request cap and `frontend/lib/processing-limits.ts` deadlines aligned if
+changing these values.
+
+These limits are per process. Measure real-model peak memory and latency on
+the deployment host before choosing a replica/worker count. Keep FastAPI
+private behind the frontend where practical, use HTTPS for public traffic
+and untrusted network hops, and configure ingress request-rate limits.
+Application limits do not replace platform connection limits or abuse control.
+
+The Python regression suite stubs native inference while exercising request
+limits, two-worker overlap, FIFO order, queue saturation, queued cancellation/timeout,
+native slot ownership, shared-detector locking, resizing, and no-detection errors. The Node
+suite starts the built production Next.js app and an isolated upstream stub
+on temporary localhost ports; it checks multipart limits, busy/error mapping,
+and cancellation without sending photos to an external service. Its stalled
+upload regression deliberately takes 60 seconds to exercise the real deadline.
 
 ## Photo requirements and assets
 

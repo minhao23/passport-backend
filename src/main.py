@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api import router as api_router
 from services.image_processor import load_models
+from request_limits import UploadLimitsMiddleware
 from contextlib import asynccontextmanager
 
 
@@ -14,6 +15,7 @@ async def lifespan(app: FastAPI):
     print("Server is shutting down...")
 
 app = FastAPI(lifespan=lifespan)
+app.add_middleware(UploadLimitsMiddleware)
 
 
 @app.get("/health")
