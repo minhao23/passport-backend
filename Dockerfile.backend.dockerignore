@@ -1,0 +1,12 @@
+**
+!Dockerfile.backend
+!Dockerfile.backend.dockerignore
+!requirements.txt
+!best.pt
+!src/
+!src/**
+
+**/__pycache__/
+**/*.py[cod]
+**/.env*
+**/.DS_Store

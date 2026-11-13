@@ -12,6 +12,7 @@ src/               FastAPI backend and image processing
 best.pt            Trained YOLO checkpoint
 requirements.txt   Existing Python dependencies
 package.json       npm workspace and frontend scripts
+Dockerfile.backend Backend-only production image
 ```
 
 ## Local development
@@ -199,6 +200,75 @@ suite starts the built production Next.js app and an isolated upstream stub
 on temporary localhost ports; it checks multipart limits, busy/error mapping,
 and cancellation without sending photos to an external service. Its stalled
 upload regression deliberately takes 60 seconds to exercise the real deadline.
+
+### Backend deployment with Docker
+
+Deploy the backend using `Dockerfile.backend` from the repository root.
+The selected deployment branch must contain this file and its companion
+`Dockerfile.backend.dockerignore`. The backend-specific filenames keep the
+frontend build configuration and build context unchanged.
+
+Use these backend service settings:
+
+| Setting | Value |
+| --- | --- |
+| Build strategy | Dockerfile |
+| Output type | Web application |
+| Base directory / build context | `/` (repository root) |
+| Dockerfile path | `Dockerfile.backend` relative to the repository root |
+| Port | `8000` |
+| Install command | Leave blank |
+| Build command | Leave blank |
+| Start command | Leave blank; the Dockerfile supplies it |
+| Pre/post-deployment commands | Leave blank |
+| Health-check path | `/health` |
+
+If the platform displays Dockerfile paths with a leading slash, enter
+`/Dockerfile.backend`. Remove any previously added `RAILPACK_*` variables
+from the backend service; they are not used by this Docker build.
+
+The image installs Python 3.11, CPU-only PyTorch wheels, the dependencies in
+`requirements.txt`, and native libraries required by OpenCV. It includes
+`best.pt` and downloads the BiRefNet portrait model during the build, so normal
+container startup does not need to download it. The initial build needs
+internet access and sufficient disk space for the dependencies and large model;
+subsequent code-only builds can reuse the model layer. Do not mount an empty
+directory over `/opt/models` or override `U2NET_HOME`, as that would hide the
+bundled model.
+
+The container runs as a non-root user with one Uvicorn worker. Its two internal
+processing slots still allow two jobs to overlap. `PORT` defaults to `8000`;
+if overriding it, update the service routing port too. The built-in health check
+uses `/health` and allows 120 seconds for startup before counting failures.
+Adjust the hosting platform's startup allowance to suit measured model-loading
+time on your deployment host.
+
+Build and run locally from the repository root:
+
+```bash
+docker build -f Dockerfile.backend -t passport-backend:local .
+docker run --detach --name passport-backend \
+  --restart unless-stopped \
+  --publish 127.0.0.1:8000:8000 \
+  passport-backend:local
+docker logs -f passport-backend
+```
+
+After model loading finishes, check readiness in another terminal:
+
+```bash
+curl --fail http://127.0.0.1:8000/health
+```
+
+The backend-specific ignore file excludes the frontend, local environments,
+Node dependencies, Git history, and secrets from the build context. Python
+dependency versions are currently unpinned, so fresh image builds can resolve
+different versions. Test the built image before promoting it to production.
+
+Keep the backend private. Set the frontend's `BACKEND_URL` to its reachable
+internal address, for example `http://passport-backend:8000` when both containers
+share a Docker network and that hostname is configured. `127.0.0.1` inside the
+frontend container points to the frontend container itself, not the backend.
 
 ## Photo requirements and assets
 
