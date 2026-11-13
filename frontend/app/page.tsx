@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "r
 import { ArrowRight, Check, ChevronDown, Download, ImagePlus, Info, LoaderCircle, ScanFace, Sun, UserRound } from "lucide-react";
 import { ACCEPTED_TYPES, countries, MAX_FILE_SIZE } from "@/lib/countries";
 import { normalizePhotoError, photoError, type PhotoError } from "@/lib/photo-errors";
+import { PHOTO_REQUEST_TIMEOUT_MS } from "@/lib/processing-limits";
 import BackgroundComparison from "@/components/background-comparison";
 
 export default function Home() {
@@ -87,7 +88,7 @@ export default function Home() {
     setLoading(true); setError(null); setResult(""); setCancelled(false);
     const controller = new AbortController();
     request.current = controller;
-    const timer = setTimeout(() => controller.abort(), 190_000);
+    const timer = setTimeout(() => controller.abort(), PHOTO_REQUEST_TIMEOUT_MS);
     try {
       const form = new FormData();
       form.set("country", country); form.set("file", file);
@@ -170,7 +171,7 @@ export default function Home() {
         <BackgroundComparison />
       </section>
 
-      {error && <div className="feedback wrap"><div ref={feedback} className="error" role="alert" tabIndex={-1} data-error-code={error.code}><Info size={20} /><div><strong>{error.title}</strong><p>{error.detail}</p></div></div></div>}
+      {error && <div className="feedback wrap"><div ref={feedback} className="error" role="alert" tabIndex={-1} data-error-code={error.code}><Info size={20} aria-hidden="true" /><div><strong>{error.title}</strong><p>{error.detail}</p>{error.code === "PERSON_NOT_DETECTED" && <button className="quiet-button" type="button" disabled={loading} onClick={() => input.current?.click()}><ImagePlus size={16} aria-hidden="true" /> Try another photo</button>}</div></div></div>}
 
       {file && <section className="workspace wrap" aria-labelledby="workspace-title">
         <div className="workspace-heading"><div><h2 ref={outputHeading} tabIndex={-1} id="workspace-title">{result ? "Your photo is ready." : "Your photo workspace"}</h2><p className="workspace-status">{result ? "Ready to download" : loading ? "Processing your photo" : cancelled ? "Processing cancelled" : "Photo selected"}</p></div>{result && <a href={result} download={`passport-${country.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.jpg`} className="primary download"><Download size={18} /> Download JPEG</a>}</div>

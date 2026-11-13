@@ -20,6 +20,16 @@ class InternalServerError(ProcessingError):
     """An unexpected failure; private details belong in server logs."""
 
 
+class ServiceBusyError(ProcessingError):
+    code = "SERVICE_BUSY"
+    status_code = 503
+    message = "The photo service is busy. Please wait a moment and try again."
+
+
+class QueueWaitTimeoutError(ServiceBusyError):
+    message = "Your photo waited too long for processing. Please try again in a moment."
+
+
 class PhotoIssueError(ProcessingError, ValueError):
     code = "PHOTO_ISSUE"
     status_code = 422
@@ -30,6 +40,24 @@ class PhotoIssueError(ProcessingError, ValueError):
 
 class EmptyPhotoError(PhotoIssueError):
     message = "The uploaded photo is empty. Please choose another photo."
+
+
+class UploadTooLargeError(PhotoIssueError):
+    status_code = 413
+    message = "Please upload one photo of 10 MB or smaller."
+
+
+class UploadTimeoutError(PhotoIssueError):
+    status_code = 408
+    message = "The upload took too long. Check your connection and try again."
+
+
+class ImageDimensionsError(PhotoIssueError):
+    status_code = 413
+    message = (
+        "This photo's dimensions are too large. Use a photo of 20 megapixels "
+        "or fewer, with neither side exceeding 10,000 pixels."
+    )
 
 
 class InvalidPhotoError(PhotoIssueError):

@@ -2,26 +2,35 @@ import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from ultralytics import YOLO
 from rembg import remove, new_session
 import io
 from pathlib import Path
-from threading import Event
+from threading import Event, Lock
 
 from utils.passport_sizes import passport_photo_sizes_mm
+from utils.image_headers import check_dimensions, check_webp_header
+from utils.limits import (
+    ACCEPTED_IMAGE_FORMATS,
+    MAX_FILE_BYTES,
+    MAX_WORKING_SIDE,
+)
 from errors import (
     EmptyPhotoError,
     InvalidCountryError,
     InvalidPhotoError,
+    ImageDimensionsError,
     LowConfidenceError,
     PersonNotDetectedError,
     ProcessingCancelledError,
     SubjectSeparationError,
     SubjectTooSmallError,
+    UploadTooLargeError,
 )
 
 MODEL_PATH = Path(__file__).resolve().parents[2] / "best.pt"
+yolo_lock = Lock()
 
 def load_models():
     global rembg_session, yolo_model
@@ -49,9 +58,26 @@ def create_passport_photo(
     target_w_mm, target_h_mm = passport_photo_sizes_mm[country]
     target_ratio = target_w_mm / target_h_mm
     
-    nparr = np.frombuffer(image_bytes, np.uint8)
-    if not nparr.size:
+    if not image_bytes:
         raise EmptyPhotoError()
+    if len(image_bytes) > MAX_FILE_BYTES:
+        raise UploadTooLargeError()
+    check_webp_header(image_bytes)
+    try:
+        # Restrict plugins: unsupported formats must not allocate during open.
+        with Image.open(io.BytesIO(image_bytes), formats=list(ACCEPTED_IMAGE_FORMATS)) as header:
+            if header.format not in ACCEPTED_IMAGE_FORMATS:
+                raise InvalidPhotoError()
+            width, height = header.size
+            check_dimensions(width, height)
+    except Image.DecompressionBombError as exc:
+        raise ImageDimensionsError() from exc
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        if isinstance(exc, (InvalidPhotoError, ImageDimensionsError)):
+            raise
+        raise InvalidPhotoError() from exc
+
+    nparr = np.frombuffer(image_bytes, np.uint8)
     try:
         original_img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     except cv2.error as exc:
@@ -61,6 +87,14 @@ def create_passport_photo(
         raise InvalidPhotoError()
 
     H, W = original_img.shape[:2]
+    check_dimensions(W, H)
+    if max(H, W) > MAX_WORKING_SIDE:
+        scale = MAX_WORKING_SIDE / max(H, W)
+        original_img = cv2.resize(
+            original_img, (max(1, round(W * scale)), max(1, round(H * scale))),
+            interpolation=cv2.INTER_AREA,
+        )
+        H, W = original_img.shape[:2]
 
     # Process Background Removal
     check_cancelled()
@@ -71,8 +105,12 @@ def create_passport_photo(
     rembg_np   = np.array(rembg_full)           # (H, W, 4) RGBA
     rembg_alpha = rembg_np[:, :, 3].astype(np.float32) / 255.0
 
-    # Process YOLO Face Detection
-    results = yolo_model.predict(original_img, conf=0.1, verbose=False)
+    # Process YOLO Person Detection
+    # YOLO initializes and mutates its shared predictor outside its internal
+    # inference lock. Serialize this stage, not the whole photo pipeline.
+    with yolo_lock:
+        check_cancelled()
+        results = yolo_model.predict(original_img, conf=0.1, verbose=False)
     check_cancelled()
 
     if len(results[0].boxes) == 0:
