@@ -7,6 +7,7 @@ from ultralytics import YOLO
 from rembg import remove, new_session
 import io
 from pathlib import Path
+from threading import Event
 
 from utils.passport_sizes import passport_photo_sizes_mm
 from errors import (
@@ -15,6 +16,7 @@ from errors import (
     InvalidPhotoError,
     LowConfidenceError,
     PersonNotDetectedError,
+    ProcessingCancelledError,
     SubjectSeparationError,
     SubjectTooSmallError,
 )
@@ -27,13 +29,20 @@ def load_models():
     rembg_session = new_session("birefnet-portrait")
     yolo_model = YOLO(str(MODEL_PATH))
 
-def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
+def create_passport_photo(
+    image_bytes: bytes, country: str, cancelled: Event | None = None
+) -> bytes:
     """
     Takes raw image bytes and a country string, processes them into a passport photo 
     with a white background, preserves aspect ratio (diagonal scaling), and 
     ensures the person is grounded at the bottom, maxing out either the width or 
     the 75% face-height rule.
     """
+    def check_cancelled():
+        if cancelled is not None and cancelled.is_set():
+            raise ProcessingCancelledError()
+
+    check_cancelled()
     if country not in passport_photo_sizes_mm:
         raise InvalidCountryError()
         
@@ -54,13 +63,17 @@ def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
     H, W = original_img.shape[:2]
 
     # Process Background Removal
+    check_cancelled()
     full_pil = Image.fromarray(cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB))
     rembg_full = remove(full_pil, session=rembg_session)
+    # Native inference cannot be interrupted; skip subsequent stages on cancel.
+    check_cancelled()
     rembg_np   = np.array(rembg_full)           # (H, W, 4) RGBA
     rembg_alpha = rembg_np[:, :, 3].astype(np.float32) / 255.0
 
     # Process YOLO Face Detection
     results = yolo_model.predict(original_img, conf=0.1, verbose=False)
+    check_cancelled()
 
     if len(results[0].boxes) == 0:
         raise PersonNotDetectedError()
@@ -85,6 +98,7 @@ def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
         yolo_alpha[y1:y2, x1:x2] = 1.0
 
     # Merge Alphas
+    check_cancelled()
     print("Merging alphas...")
     kernel   = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))
     yolo_bin = (yolo_alpha > 0.5).astype(np.uint8)
@@ -112,6 +126,7 @@ def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
     # SMART CROPPING & DIAGONAL SCALING LOGIC
     # ==========================================================
     print("Calculating Proportions...")
+    check_cancelled()
     
     # 1. Get the absolute pixel bounds of the person's body from our alpha mask
     # This is much more accurate than the YOLO box because it perfectly wraps the visible pixels
@@ -156,6 +171,7 @@ def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
     # FINAL EXPORT
     # ==========================================================
     print("Exporting...")
+    check_cancelled()
 
     pixels_per_mm = 11.81
     final_pixel_w = int(target_w_mm * pixels_per_mm)
@@ -165,5 +181,6 @@ def create_passport_photo(image_bytes: bytes, country: str) -> bytes:
 
     img_byte_arr = io.BytesIO()
     final_img.save(img_byte_arr, format='JPEG', quality=95)
-    
+    check_cancelled()
+
     return img_byte_arr.getvalue()

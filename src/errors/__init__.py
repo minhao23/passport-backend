@@ -1,3 +1,7 @@
+class ProcessingCancelledError(Exception):
+    """The caller disconnected; stop work without reporting a photo failure."""
+
+
 class ProcessingError(Exception):
     """A public processing failure with a fixed response contract."""
 

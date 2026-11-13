@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const response = await fetch(url, {
       method: "POST",
       body: upstreamForm,
-      signal: AbortSignal.timeout(180_000),
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(180_000)]),
       cache: "no-store",
     });
     if (!response.ok) {
@@ -40,6 +40,9 @@ export async function POST(request: Request) {
       headers: { "Content-Type": "image/jpeg", "Cache-Control": "no-store" },
     });
   } catch (error) {
+    if (request.signal.aborted) {
+      return new Response(null, { status: 499 });
+    }
     const timeout = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
     return Response.json(photoError("INTERNAL_SERVER_ERROR", timeout
       ? "Processing is taking longer than expected. Please try again in a moment."

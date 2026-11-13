@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
-import { ArrowRight, Check, ChevronDown, Download, Info, LoaderCircle, ScanFace, Sun, UserRound, X } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, Download, ImagePlus, Info, LoaderCircle, ScanFace, Sun, UserRound } from "lucide-react";
 import { ACCEPTED_TYPES, countries, MAX_FILE_SIZE } from "@/lib/countries";
 import { normalizePhotoError, photoError, type PhotoError } from "@/lib/photo-errors";
 import BackgroundComparison from "@/components/background-comparison";
@@ -13,8 +13,10 @@ export default function Home() {
   const [result, setResult] = useState("");
   const [error, setError] = useState<PhotoError | null>(null);
   const [loading, setLoading] = useState(false);
+  const [cancelled, setCancelled] = useState(false);
   const [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const primaryAction = useRef<HTMLButtonElement>(null);
   const feedback = useRef<HTMLDivElement>(null);
   const outputHeading = useRef<HTMLHeadingElement>(null);
   const request = useRef<AbortController | null>(null);
@@ -28,12 +30,17 @@ export default function Home() {
     return () => URL.revokeObjectURL(url);
   }, [file]);
   useEffect(() => () => { if (result) URL.revokeObjectURL(result); }, [result]);
-  useEffect(() => () => { request.current?.abort(); }, []);
+  useEffect(() => () => {
+    const controller = request.current;
+    request.current = null;
+    controller?.abort();
+  }, []);
   useEffect(() => { if (error) feedback.current?.focus(); }, [error]);
   useEffect(() => { if (result) outputHeading.current?.focus(); }, [result]);
+  useEffect(() => { if (cancelled) primaryAction.current?.focus(); }, [cancelled]);
 
   async function selectFile(next?: File) {
-    if (!next || loading) return;
+    if (!next || request.current) return;
     const version = ++selection.current;
     setError(null);
     if (!ACCEPTED_TYPES.includes(next.type)) {
@@ -48,6 +55,7 @@ export default function Home() {
       if (version !== selection.current) return;
       setFile(next);
       setResult("");
+      setCancelled(false);
     } catch {
       if (version === selection.current) setError(photoError("PHOTO_ISSUE", "This image couldn't be opened. Please choose another photo."));
     }
@@ -58,11 +66,25 @@ export default function Home() {
     void selectFile(event.dataTransfer.files[0]);
   }
   function changeCountry(event: ChangeEvent<HTMLSelectElement>) {
-    setCountry(event.target.value); setResult(""); setError(null);
+    setCountry(event.target.value); setResult(""); setError(null); setCancelled(false);
+  }
+  function removePhoto() {
+    if (request.current) return;
+    ++selection.current;
+    setFile(null); setResult(""); setError(null); setCancelled(false);
+  }
+  function cancelProcessing() {
+    const controller = request.current;
+    if (!controller) return;
+    // Invalidate first so late responses cannot overwrite a replacement or retry.
+    request.current = null;
+    controller.abort();
+    setLoading(false); setError(null); setCancelled(true);
   }
   async function generate() {
-    if (!file || loading) return;
-    setLoading(true); setError(null); setResult("");
+    if (!file || request.current) return;
+    ++selection.current;
+    setLoading(true); setError(null); setResult(""); setCancelled(false);
     const controller = new AbortController();
     request.current = controller;
     const timer = setTimeout(() => controller.abort(), 190_000);
@@ -70,22 +92,30 @@ export default function Home() {
       const form = new FormData();
       form.set("country", country); form.set("file", file);
       const response = await fetch("/api/process", { method: "POST", body: form, signal: controller.signal });
+      if (request.current !== controller) return;
       if (!response.ok) {
         const data = await response.json().catch(() => null);
+        if (request.current !== controller) return;
         setError(normalizePhotoError(data, response.status));
         return;
       }
       const blob = await response.blob();
+      if (request.current !== controller) return;
       if (!blob.size || !blob.type.startsWith("image/jpeg")) {
         setError(photoError("INTERNAL_SERVER_ERROR")); return;
       }
       setResult(URL.createObjectURL(blob));
     } catch (err) {
+      if (request.current !== controller) return;
       setError(photoError("INTERNAL_SERVER_ERROR", err instanceof Error && err.name === "AbortError"
         ? "Processing is taking longer than expected. Please try again in a moment."
         : "We couldn't connect to the photo service. Check your connection and try again."));
     } finally {
-      clearTimeout(timer); request.current = null; setLoading(false);
+      clearTimeout(timer);
+      if (request.current === controller) {
+        request.current = null;
+        setLoading(false);
+      }
     }
   }
 
@@ -109,12 +139,30 @@ export default function Home() {
             <p id="photo-help" className="sr-only">Choose a JPG, PNG, or WebP up to 10 MB. Your photo is sent to the processor only when you generate.</p>
             <input ref={input} id="photo" aria-label="Add your photo" type="file" accept={ACCEPTED_TYPES.join(",")} disabled={loading} className="sr-only" tabIndex={-1} aria-describedby="photo-help" onChange={event => { void selectFile(event.target.files?.[0]); event.target.value = ""; }} />
             <div className={`upload-area ${dragging ? "dragging" : ""}`} onDragOver={event => { event.preventDefault(); if (!loading) setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop}>
-              {file
-                ? <button className="primary generate" type="button" onClick={() => void generate()} disabled={loading}>{loading ? <><LoaderCircle className="spin" size={20} /> Creating your photo...</> : <><ScanFace size={20} /> Generate passport photo <ArrowRight size={18} /></>}</button>
-                : <button type="button" className="primary upload-button" onClick={() => input.current?.click()}>{dragging ? "Drop your photo here" : "Upload your photo"}</button>}
-              {file
-                ? <div className="file-note"><span title={file.name}>{file.name}</span><button type="button" disabled={loading} onClick={() => input.current?.click()}>Change</button><button className="remove-photo" type="button" aria-label="Remove photo" disabled={loading} onClick={() => { ++selection.current; setFile(null); setResult(""); setError(null); }}><X size={15} /></button></div>
-                : <p className="upload-help">JPG, PNG, WebP up to 10 MB. <span>Or drop it here.</span></p>}
+              {loading
+                ? <div className="processing-state">
+                  <div className="processing-status" role="status">
+                    <LoaderCircle className="spin" size={20} aria-hidden="true" />
+                    <div className="processing-copy">
+                      <strong>Creating your photo</strong>
+                      <p className="file-note" title={file?.name}>{file?.name}</p>
+                    </div>
+                  </div>
+                  <button className="quiet-button" type="button" aria-label="Cancel processing" onClick={cancelProcessing}>Cancel</button>
+                </div>
+                : file
+                  ? <button ref={primaryAction} className="primary generate" type="button" onClick={() => void generate()}><ScanFace size={20} /> Generate passport photo <ArrowRight size={18} /></button>
+                  : <button ref={primaryAction} type="button" className="primary upload-button" onClick={() => input.current?.click()}>{dragging ? "Drop your photo here" : "Upload your photo"}</button>}
+              {!loading && (file
+                ? <>
+                  <p className="file-note" title={file.name}>{file.name}</p>
+                  <div className="photo-actions">
+                    <button className="secondary" type="button" onClick={() => input.current?.click()}><ImagePlus size={18} aria-hidden="true" /> Change photo</button>
+                    <button className="quiet-button" type="button" onClick={removePhoto}>Remove photo</button>
+                  </div>
+                </>
+                : <p className="upload-help">JPG, PNG, WebP up to 10 MB. <span>Or drop it here.</span></p>)}
+              <p className="process-note" role="status">{cancelled ? "Cancelled. Change your photo or generate again." : ""}</p>
             </div>
             <p className="mobile-free-note">Free. No account needed.</p>
           </div>
@@ -125,13 +173,14 @@ export default function Home() {
       {error && <div className="feedback wrap"><div ref={feedback} className="error" role="alert" tabIndex={-1} data-error-code={error.code}><Info size={20} /><div><strong>{error.title}</strong><p>{error.detail}</p></div></div></div>}
 
       {file && <section className="workspace wrap" aria-labelledby="workspace-title">
-        <div className="workspace-heading"><div><h2 ref={outputHeading} tabIndex={-1} id="workspace-title">{result ? "Your photo is ready." : "Your photo workspace"}</h2><p className="workspace-status">{result ? "Ready to download" : loading ? "Processing your photo" : "Photo selected"}</p></div>{result && <a href={result} download={`passport-${country.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.jpg`} className="primary download"><Download size={18} /> Download JPEG</a>}</div>
+        <div className="workspace-heading"><div><h2 ref={outputHeading} tabIndex={-1} id="workspace-title">{result ? "Your photo is ready." : "Your photo workspace"}</h2><p className="workspace-status">{result ? "Ready to download" : loading ? "Processing your photo" : cancelled ? "Processing cancelled" : "Photo selected"}</p></div>{result && <a href={result} download={`passport-${country.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.jpg`} className="primary download"><Download size={18} /> Download JPEG</a>}</div>
         <div className="workspace-body">
           <div className="photo-pair">
             <figure className="source-photo">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               {preview && <img src={preview} alt="Your uploaded photo" />}
               <figcaption>Your original</figcaption>
+              <button className="quiet-button preview-change" type="button" disabled={loading} onClick={() => input.current?.click()}><ImagePlus size={16} aria-hidden="true" /> Change photo</button>
             </figure>
             <ArrowRight className="photo-direction" size={24} aria-hidden="true" />
             <figure className="output-photo">
@@ -142,7 +191,7 @@ export default function Home() {
               <figcaption>{result ? "Your passport photo" : loading ? "Preparing your JPEG" : "Your result goes here"}</figcaption>
             </figure>
           </div>
-          <div className="output-details"><h3 className="preview-country">{country}</h3><dl><div><dt>Photo size</dt><dd>{width} × {height} mm</dd></div><div><dt>Background</dt><dd>White</dd></div><div><dt>File format</dt><dd>JPEG</dd></div></dl><p className="result-message" role="status">{result ? "Download your photo, then check it against your issuing authority's rules." : loading ? "This may take a few minutes. Keep this page open." : "Select Generate passport photo above when you're ready."}</p><p className="privacy-note">Your photo is sent to the processor only when you generate.</p></div>
+          <div className="output-details"><h3 className="preview-country">{country}</h3><dl><div><dt>Photo size</dt><dd>{width} × {height} mm</dd></div><div><dt>Background</dt><dd>White</dd></div><div><dt>File format</dt><dd>JPEG</dd></div></dl><p className="result-message" role="status">{result ? "Download your photo, then check it against your issuing authority's rules." : loading ? "This may take a few minutes. You can cancel and keep your original photo." : cancelled ? "Your original photo is still here. Change it or generate again when you're ready." : "Select Generate passport photo above when you're ready."}</p>{loading && <button className="quiet-button workspace-cancel" type="button" onClick={cancelProcessing}>Cancel processing</button>}<p className="privacy-note">Your photo is sent to the processor only when you generate.</p></div>
         </div>
       </section>}
 

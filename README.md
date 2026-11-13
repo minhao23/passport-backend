@@ -57,6 +57,17 @@ of up to 10 MB, generate a photo, and download the resulting JPEG.
 The original upload is previewed separately from the generated result.
 Changing the country or upload clears the previous result.
 
+After selection, use **Change photo** below Generate or beside the original
+preview to choose a replacement. Invalid replacements leave the current photo
+intact. **Remove photo** returns to the upload state.
+
+During generation, **Cancel processing** keeps the original photo available
+for replacement or retry and discards any late response. The proxy forwards
+the disconnect to FastAPI, which checks for cancellation between processing
+stages. A native model inference already in progress finishes its current
+call before stopping; cancellation does not forcibly kill the shared model.
+Restart the backend after updating it to enable these cancellation checkpoints.
+
 `BACKEND_URL` is server-only and defaults to `http://127.0.0.1:8000`.
 Restart Next.js after changing it. The browser sends multipart requests to
 `/api/process`; this Next.js route forwards the file to
@@ -106,6 +117,7 @@ recognizes the original backend's known detection/decode error messages.
 ## Checks and production
 
 ```bash
+PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v
 npm run typecheck
 npm run build
 npm run start
