@@ -6,8 +6,8 @@ import { UPSTREAM_TIMEOUT_MS } from "@/lib/processing-limits";
 
 export const runtime = "nodejs";
 
-// Matches two backend workers plus two uploading/waiting requests by default.
-const MAX_ACTIVE_REQUESTS = 4;
+// Matches one backend worker plus two uploading/waiting requests by default.
+const MAX_ACTIVE_REQUESTS = 3;
 let activeRequests = 0;
 const noStore = { "Cache-Control": "no-store" };
 
