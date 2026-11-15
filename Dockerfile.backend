@@ -5,6 +5,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
+    MALLOC_ARENA_MAX=2 \
+    OMP_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
     U2NET_HOME=/opt/models \
     YOLO_CONFIG_DIR=/tmp/ultralytics \
     HOME=/home/app \
@@ -30,7 +34,7 @@ RUN python -m pip install torch torchvision --index-url https://download.pytorch
 USER app
 
 # Download without loading inference into memory; cache this layer across code changes.
-RUN python -c "from rembg.sessions.birefnet_portrait import BiRefNetSessionPortrait; BiRefNetSessionPortrait.download_models()"
+RUN python -c "from rembg.sessions.u2net_human_seg import U2netHumanSegSession; U2netHumanSegSession.download_models()"
 
 COPY best.pt ./best.pt
 COPY src/ ./src/

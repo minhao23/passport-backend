@@ -221,11 +221,11 @@ test("backend busy and no-person errors remain distinct", async () => {
   }
 });
 
-test("frontend rejects a fifth active request and recovers its slots", { timeout: 15_000 }, async () => {
+test("frontend rejects a fourth active request and recovers its slots", { timeout: 15_000 }, async () => {
   mode = "hold";
   held = [];
-  const ready = new Promise(resolve => { onHeld = () => { if (held.length === 4) resolve(); }; });
-  const requests = Array.from({ length: 4 }, () => send());
+  const ready = new Promise(resolve => { onHeld = () => { if (held.length === 3) resolve(); }; });
+  const requests = Array.from({ length: 3 }, () => send());
   try {
     await ready;
     const before = upstreamCalls;

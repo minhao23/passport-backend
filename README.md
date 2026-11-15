@@ -39,7 +39,7 @@ in `.venv/ultralytics`, avoiding writes to global configuration directories.
 Set `U2NET_HOME` or `YOLO_CONFIG_DIR` to use an existing cache instead.
 
 The requirements include `rembg[cpu]` and Pillow. The first launch downloads
-the approximately 1 GB BiRefNet portrait model and takes longer than subsequent launches. Keep
+the U2Net human-segmentation model and takes longer than subsequent launches. Keep
 `best.pt` at the repository root; its path is resolved from the backend source,
 independent of the working directory. Wait for application startup to finish before generating.
 FastAPI's interactive API documentation is at http://127.0.0.1:8000/docs.
@@ -60,7 +60,10 @@ The original upload is previewed separately from the generated result.
 Changing the country or upload clears the previous result.
 Uploads must also be at most 20 megapixels, with neither side exceeding
 10,000 pixels. Accepted images are reduced proportionally to a maximum
-2,048-pixel working side before model processing. WebP must be a still image;
+1,024-pixel working side before model processing. Large JPEGs are downsampled
+during decoding where possible, rather than allocating their full-resolution
+RGB pixels first. PNG and WebP still require a full decode within the source
+dimension limits. WebP must be a still image;
 its container and bitstream dimensions are checked before opening a decoder.
 
 After selection, use **Change photo** below Generate or beside the original
@@ -157,15 +160,16 @@ The Node service sends upload-rejection JSON before disposing unread bytes.
 Post-response cleanup discards, without buffering, at most twice the request
 limit plus one stream chunk and waits at most one second before cancellation.
 It retains the admission slot during this bounded cleanup.
-The Next.js process admits at most four active upload/processing requests.
-Each FastAPI process admits at most four photos before multipart parsing and
-runs two photo-processing jobs concurrently. When both workers are occupied, up to two other
+The Next.js process admits at most three active upload/processing requests.
+Each FastAPI process admits at most three photos before multipart parsing and
+runs one photo-processing job at a time. When the worker is occupied, up to two other
 photos may upload or wait. Completed, validated uploads take worker slots in
 FIFO order; a slow upload does not prevent a ready photo from running.
-The workers are threads in the same process and share the loaded models.
-Background removal can overlap; the YOLO prediction stage is locked because
-its predictor setup and arguments are mutable shared state. A photo cancelled
-while waiting for this lock is checked again before YOLO runs.
+The worker is a thread in the server process and reuses both loaded models.
+YOLO runs before background removal, avoiding segmentation for photos with no
+usable detection. Its prediction stage remains locked because its predictor
+setup and arguments are mutable shared state. A photo cancelled while waiting
+for this lock is checked again before YOLO runs.
 
 Waiting photos stay in Starlette's bounded upload files (large files spool to
 temporary disk). The endpoint reads the selected file into a bytes buffer only
@@ -184,8 +188,8 @@ This queue is in-process and not durable: restarting or terminating the backend
 loses pending work, and users must resubmit. There is no RabbitMQ, Redis, or
 cross-process coordination. `MAX_ACTIVE_JOBS`, `MAX_WAITING_JOBS`, and
 `MAX_QUEUE_WAIT_SECONDS` in `src/utils/limits.py` set the active concurrency
-(two), waiting capacity (two), and queue deadline. Keep the frontend's
-four-request cap and `frontend/lib/processing-limits.ts` deadlines aligned if
+(one), waiting capacity (two), and queue deadline. Keep the frontend's
+three-request cap and `frontend/lib/processing-limits.ts` deadlines aligned if
 changing these values.
 
 These limits are per process. Measure real-model peak memory and latency on
@@ -195,12 +199,93 @@ and untrusted network hops, and configure ingress request-rate limits.
 Application limits do not replace platform connection limits or abuse control.
 
 The Python regression suite stubs native inference while exercising request
-limits, two-worker overlap, FIFO order, queue saturation, queued cancellation/timeout,
-native slot ownership, shared-detector locking, resizing, and no-detection errors. The Node
+limits, single-worker FIFO order, queue saturation, queued cancellation/timeout,
+native slot ownership, shared-detector locking, resizing, and no-detection errors.
+It also checks mask-only RGB compositing against the previous alpha formula,
+all country output sizes, JPEG reduced decoding, and low-memory configuration.
+Explicit two-worker unit coverage remains for future higher-memory configurations. The Node
 suite starts the built production Next.js app and an isolated upstream stub
 on temporary localhost ports; it checks multipart limits, busy/error mapping,
 and cancellation without sending photos to an external service. Its stalled
 upload regression deliberately takes 60 seconds to exercise the real deadline.
+
+### Low-memory processing
+
+The default pipeline keeps `rembg`, using `u2net_human_seg` instead of
+`birefnet-portrait`. The human-segmentation model runs at 320 x 320 internally;
+the previous portrait model used 1024 x 1024. This is a different model, not
+just a lower-resolution version of the same weights. Fine hair and difficult
+backgrounds may be less accurately separated. Compare representative portraits
+before deploying; smooth edges alone do not guarantee equivalent quality.
+
+One native job runs at a time, with two bounded uploading/waiting slots.
+Images use at most a 1024-pixel working side. `rembg` returns only its soft mask,
+which is combined with YOLO's mask and composited onto white using the original
+RGB image. Mask multiplication is in place, subject bounds use row/column
+occupancy rather than per-pixel coordinate arrays, and generated Pillow images
+are explicitly closed. Erosion/dilation and blur kernels scale relative to the
+previous working resolution. JPEG output dimensions remain unchanged.
+
+The runtime profile in `src/services/rembg_runtime.py` disables ONNX Runtime's
+retained CPU memory arena, keeping memory-pattern planning and graph optimization
+at their defaults. Execution is sequential with one intra/inter-op thread.
+No weights, precision, network input size, mask formula, or JPEG settings change
+in this additional runtime pass. Allocations may be slower without the retained
+arena, so measure latency as well as RAM.
+
+The backend Dockerfile also defaults to `MALLOC_ARENA_MAX=2` and one
+OMP/OpenBLAS/MKL thread. The malloc setting takes effect when Linux starts the
+process; setting it after Python starts is not equivalent. These are allocator
+and library defaults, not a hard RAM cap or a blanket override of all PyTorch
+thread settings. YOLO's completed request caches (`results`, `batch`, `dataset`)
+are cleared while its model/predictor remain loaded, including on errors and
+cancellation.
+
+These changes target small hosts, but do not guarantee a 2 GB fit: leave memory for
+Next.js, your deployment manager, and the operating system. Model weight size
+is not the same as peak inference RAM. Warm-up and native allocators can retain
+memory for reuse; measure repeated successful uploads, including large PNG/WebP
+inputs and queue/cancellation cases, not only `/health` or startup.
+
+For example, after building the backend image, test with an exact 2 GB container
+ceiling (2,000,000,000 bytes, no additional swap allowance):
+
+```bash
+docker run --detach --name passport-backend-memory-check \
+  --memory=2000000000 --memory-swap=2000000000 --cpus=2 \
+  --publish 127.0.0.1:8001:8000 \
+  passport-backend:local
+docker stats passport-backend-memory-check
+```
+
+Wait for `/health` on local port 8001, then point a local frontend's
+`BACKEND_URL` at that service and process representative test photos. For a
+frontend in Docker Desktop, use `http://host.docker.internal:8001` instead of
+loopback. Run `docker inspect --format '{{.State.OOMKilled}}' passport-backend-memory-check`
+if the container exits. Sample memory throughout processing; a single
+`docker stats --no-stream` reading can miss the peak. Also check whole-host
+memory, since container limits do not reserve RAM for other services.
+
+Build images on a separate builder when the production host is itself limited
+to 2 GB; running a frontend build alongside inference can exhaust shared RAM.
+
+The optional native probe compares pre-runtime-tuning and optimized profiles in
+separate processes, with the same loaded model weights and image pipeline. It
+checks soft-mask and JPEG hashes and reports whole-process peak RSS. It does not
+measure other services or enforce a container limit:
+
+```bash
+U2NET_HOME=.venv/model-cache \
+YOLO_CONFIG_DIR=.venv/ultralytics \
+.venv/bin/python tests/native_memory_probe.py \
+  --image /absolute/path/to/representative-portrait.jpg --rounds 3
+```
+
+Use several representative `--image` files. Full verification fails if YOLO
+accepts none of them, if hashes differ, or if the native subprocess fails.
+`--mask-only` allows the bundled Ultralytics fixtures to check segmentation
+without claiming end-to-end JPEG verification. A successful local comparison
+does not replace repeated uploads under the actual Linux memory cap.
 
 ### Frontend deployment with Docker
 
@@ -299,15 +384,15 @@ from the backend service; they are not used by this Docker build.
 
 The image installs Python 3.11, CPU-only PyTorch wheels, the dependencies in
 `requirements.txt`, and native libraries required by OpenCV. It includes
-`best.pt` and downloads the BiRefNet portrait model during the build, so normal
+`best.pt` and downloads the U2Net human-segmentation model during the build, so normal
 container startup does not need to download it. The initial build needs
 internet access and sufficient disk space for the dependencies and large model;
 subsequent code-only builds can reuse the model layer. Do not mount an empty
 directory over `/opt/models` or override `U2NET_HOME`, as that would hide the
 bundled model.
 
-The container runs as a non-root user with one Uvicorn worker. Its two internal
-processing slots still allow two jobs to overlap. `PORT` defaults to `8000`;
+The container runs as a non-root user with one Uvicorn worker and one internal
+processing slot, avoiding concurrent segmentation memory peaks. `PORT` defaults to `8000`;
 if overriding it, update the service routing port too. The built-in health check
 uses `/health` and allows 120 seconds for startup before counting failures.
 Adjust the hosting platform's startup allowance to suit measured model-loading

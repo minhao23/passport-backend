@@ -4,9 +4,10 @@ import json
 import unittest
 import zlib
 from concurrent.futures import ThreadPoolExecutor
-from threading import Barrier, Event, Lock
+from pathlib import Path
+from threading import Event, Lock
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import cv2
 import numpy as np
@@ -19,14 +20,26 @@ inference_stubs = patch.dict("sys.modules", {
     "ultralytics": SimpleNamespace(YOLO=Mock()),
 })
 inference_stubs.start()
-unittest.addModuleCleanup(inference_stubs.stop)
+
+
+def tearDownModule():
+    # Discovery imports all modules first; the shared cleanup stack can otherwise
+    # remove these stubs after a different test module finishes.
+    inference_stubs.stop()
 
 from api.images import process_image
-from errors import ImageDimensionsError, InvalidPhotoError, PersonNotDetectedError, ProcessingCancelledError
+from errors import (
+    ImageDimensionsError, InvalidPhotoError, LowConfidenceError,
+    PersonNotDetectedError, ProcessingCancelledError, SubjectSeparationError,
+    SubjectTooSmallError,
+)
 from main import app
-from services import image_processor
+from services import image_processor, rembg_runtime
 from services.processing_jobs import ProcessingPool, processing_pool
-from utils.limits import MAX_ACTIVE_JOBS, MAX_FILE_BYTES, MAX_REQUEST_BYTES, MAX_WAITING_JOBS
+from utils.limits import (
+    MAX_ACTIVE_JOBS, MAX_FILE_BYTES, MAX_REQUEST_BYTES, MAX_WAITING_JOBS,
+    MAX_WORKING_SIDE,
+)
 from utils.image_headers import check_webp_header
 
 
@@ -37,6 +50,19 @@ def webp_chunk(kind, payload):
 def webp_container(chunks):
     payload = b"WEBP" + chunks
     return b"RIFF" + len(payload).to_bytes(4, "little") + payload
+
+
+def person_result(size=(32, 32), confidence=0.9, class_id=0, mask=None):
+    boxes = MagicMock()
+    boxes.__len__.return_value = 1
+    boxes.conf = np.array([confidence])
+    boxes.cls = np.array([class_id])
+    boxes[0].xyxy[0].cpu().numpy.return_value = np.array([0, 0, *size])
+    masks = None
+    if mask is not None:
+        masks = MagicMock()
+        masks.data[0].cpu().numpy.return_value = mask
+    return SimpleNamespace(boxes=boxes, masks=masks)
 
 
 class WebPHeaderTests(unittest.TestCase):
@@ -103,22 +129,25 @@ class ProcessingCheckpointTests(unittest.TestCase):
                 )
         decode.assert_not_called()
 
-    def test_cancel_after_background_removal_skips_detection(self):
+    def test_cancel_after_background_removal_skips_compositing(self):
         def remove(image, **kwargs):
             self.cancelled.set()
-            return image.convert("RGBA")
+            return image.convert("L")
 
         detector = Mock()
+        detector.predict.return_value = [person_result()]
         with (
             patch.object(image_processor, "remove", side_effect=remove),
             patch.object(image_processor, "rembg_session", object(), create=True),
             patch.object(image_processor, "yolo_model", detector, create=True),
+            patch.object(image_processor.cv2, "getStructuringElement") as composite,
         ):
             with self.assertRaises(ProcessingCancelledError):
                 image_processor.create_passport_photo(
                     self.photo, "United States", self.cancelled
                 )
-        detector.predict.assert_not_called()
+        detector.predict.assert_called_once()
+        composite.assert_not_called()
 
     def test_cancel_after_detection_skips_compositing(self):
         def detect(*args, **kwargs):
@@ -126,7 +155,7 @@ class ProcessingCheckpointTests(unittest.TestCase):
             return []
 
         with (
-            patch.object(image_processor, "remove", side_effect=lambda image, **_: image.convert("RGBA")),
+            patch.object(image_processor, "remove") as remove,
             patch.object(image_processor, "rembg_session", object(), create=True),
             patch.object(image_processor, "yolo_model", SimpleNamespace(predict=detect), create=True),
             patch.object(image_processor.cv2, "getStructuringElement") as composite,
@@ -136,9 +165,9 @@ class ProcessingCheckpointTests(unittest.TestCase):
                     self.photo, "United States", self.cancelled
                 )
         composite.assert_not_called()
+        remove.assert_not_called()
 
-    def test_parallel_background_removal_serializes_shared_detector(self):
-        backgrounds = Barrier(2)
+    def test_parallel_calls_serialize_shared_detector(self):
         detector_started = Event()
         release_detector = Event()
         second_lock_attempt = Event()
@@ -159,11 +188,6 @@ class ProcessingCheckpointTests(unittest.TestCase):
             def __exit__(self, *args):
                 detector_lock.release()
 
-        def remove(image, **kwargs):
-            # Both jobs must enter background removal before either can finish.
-            backgrounds.wait(timeout=3)
-            return image.convert("RGBA")
-
         def detect(*args, **kwargs):
             detections.append(True)
             if len(detections) == 1:
@@ -173,7 +197,7 @@ class ProcessingCheckpointTests(unittest.TestCase):
             return [SimpleNamespace(boxes=[])]
 
         with (
-            patch.object(image_processor, "remove", side_effect=remove),
+            patch.object(image_processor, "remove") as remove,
             patch.object(image_processor, "rembg_session", object(), create=True),
             patch.object(image_processor, "yolo_model", SimpleNamespace(predict=detect), create=True),
             patch.object(image_processor, "yolo_lock", ObservedLock()),
@@ -193,6 +217,7 @@ class ProcessingCheckpointTests(unittest.TestCase):
                 with self.assertRaises(PersonNotDetectedError):
                     future.result(timeout=2)
         self.assertEqual(len(detections), 2)
+        remove.assert_not_called()
 
     def test_cancel_while_waiting_for_detector_skips_prediction(self):
         gate = Mock()
@@ -256,21 +281,25 @@ class ProcessingCheckpointTests(unittest.TestCase):
         with (
             patch.object(image_processor, "remove", side_effect=remove),
             patch.object(image_processor, "rembg_session", object(), create=True),
+            patch.object(image_processor, "yolo_model", Mock(
+                predict=Mock(return_value=[person_result((1024, 8))])
+            ), create=True),
         ):
             with self.assertRaises(ProcessingCancelledError):
                 image_processor.create_passport_photo(encoded.tobytes(), "United States")
-        self.assertEqual(sizes, [(2048, 16)])
+        self.assertEqual(sizes, [(1024, 8)])
 
     def test_no_detected_subject_raises_expected_error(self):
         detector = Mock()
         detector.predict.return_value = [SimpleNamespace(boxes=[])]
         with (
-            patch.object(image_processor, "remove", side_effect=lambda image, **_: image.convert("RGBA")),
+            patch.object(image_processor, "remove") as remove,
             patch.object(image_processor, "rembg_session", object(), create=True),
             patch.object(image_processor, "yolo_model", detector, create=True),
         ):
             with self.assertRaises(PersonNotDetectedError):
                 image_processor.create_passport_photo(self.photo, "United States")
+        remove.assert_not_called()
 
     def test_actual_image_format_is_checked(self):
         image = image_processor.Image.new("RGB", (32, 32), "white")
@@ -280,6 +309,346 @@ class ProcessingCheckpointTests(unittest.TestCase):
             with self.assertRaises(InvalidPhotoError):
                 image_processor.create_passport_photo(data.getvalue(), "United States")
         decode.assert_not_called()
+
+
+class ReducedMemoryTests(unittest.TestCase):
+    def photo(self, size=(128, 96), format="PNG"):
+        image = image_processor.Image.new("RGB", size, (25, 65, 105))
+        output = io.BytesIO()
+        image.save(output, format=format)
+        return output.getvalue()
+
+    def test_low_memory_defaults_and_docker_model_match(self):
+        self.assertEqual(MAX_ACTIVE_JOBS, 1)
+        self.assertEqual(MAX_WAITING_JOBS, 2)
+        self.assertEqual(MAX_WORKING_SIDE, 1024)
+        self.assertEqual(image_processor.REMBG_MODEL_NAME, "u2net_human_seg")
+        dockerfile = (Path(__file__).resolve().parents[1] / "Dockerfile.backend").read_text()
+        self.assertIn(
+            "from rembg.sessions.u2net_human_seg import U2netHumanSegSession", dockerfile
+        )
+        self.assertNotIn("birefnet_portrait", dockerfile)
+        for setting in (
+            "MALLOC_ARENA_MAX=2", "OMP_NUM_THREADS=1",
+            "OPENBLAS_NUM_THREADS=1", "MKL_NUM_THREADS=1",
+        ):
+            self.assertIn(setting, dockerfile)
+        route = (Path(__file__).resolve().parents[1]
+                 / "frontend/app/api/process/route.ts").read_text()
+        self.assertIn("const MAX_ACTIVE_REQUESTS = 3;", route)
+
+    def test_model_loading_uses_one_reusable_cpu_session(self):
+        session = object()
+        detector = object()
+        with (
+            patch.object(image_processor, "create_rembg_session", return_value=session) as create,
+            patch.object(image_processor, "YOLO", return_value=detector) as yolo,
+            patch.object(image_processor, "rembg_session", None, create=True),
+            patch.object(image_processor, "yolo_model", None, create=True),
+        ):
+            image_processor.load_models()
+            create.assert_called_once_with("u2net_human_seg")
+            yolo.assert_called_once_with(str(image_processor.MODEL_PATH))
+            self.assertIs(image_processor.rembg_session, session)
+            self.assertIs(image_processor.yolo_model, detector)
+
+    def test_rembg_runtime_limits_allocators_not_precision_or_resolution(self):
+        options = SimpleNamespace(
+            enable_cpu_mem_arena=True, enable_mem_pattern=True,
+            graph_optimization_level="default", execution_mode=None,
+            intra_op_num_threads=0, inter_op_num_threads=0,
+        )
+        session_type = Mock()
+        session_type.name.return_value = "u2net_human_seg"
+        ort = SimpleNamespace(
+            SessionOptions=Mock(return_value=options),
+            ExecutionMode=SimpleNamespace(ORT_SEQUENTIAL="sequential"),
+        )
+        with patch.dict("sys.modules", {
+            "onnxruntime": ort,
+            "rembg.sessions.u2net_human_seg": SimpleNamespace(
+                U2netHumanSegSession=session_type
+            ),
+        }):
+            self.assertIs(
+                rembg_runtime.create_rembg_session("u2net_human_seg"),
+                session_type.return_value,
+            )
+            session_type.assert_called_once_with(
+                "u2net_human_seg", options, providers=["CPUExecutionProvider"],
+            )
+            self.assertFalse(options.enable_cpu_mem_arena)
+            self.assertTrue(options.enable_mem_pattern)
+            self.assertEqual(options.graph_optimization_level, "default")
+            self.assertEqual(options.execution_mode, "sequential")
+            self.assertEqual(options.intra_op_num_threads, 1)
+            self.assertEqual(options.inter_op_num_threads, 1)
+            session_type.reset_mock()
+            with self.assertRaises(ValueError):
+                rembg_runtime.create_rembg_session("birefnet-portrait")
+            session_type.assert_not_called()
+
+    def test_detector_clears_request_caches_but_keeps_model_and_predictor(self):
+        mask = np.linspace(0, 1, 32 * 32, dtype=np.float32).reshape(32, 32)
+        predictor = SimpleNamespace(model=object())
+        detector = Mock(predictor=predictor)
+
+        def detect(image, **kwargs):
+            result = person_result(mask=mask)
+            predictor.results = [result]
+            predictor.batch = (["photo"], [image], [""])
+            predictor.dataset = [image]
+            return predictor.results
+
+        detector.predict.side_effect = detect
+        original = np.zeros((32, 32, 3), dtype=np.uint8)
+        with patch.object(image_processor, "yolo_model", detector, create=True):
+            for _ in range(3):
+                alpha = image_processor.person_alpha(original, lambda: None)
+                np.testing.assert_array_equal(alpha, mask)
+                self.assertIs(detector.predictor, predictor)
+                self.assertIsNotNone(predictor.model)
+                self.assertIsNone(predictor.results)
+                self.assertIsNone(predictor.batch)
+                self.assertIsNone(predictor.dataset)
+        self.assertEqual(detector.predict.call_count, 3)
+        np.testing.assert_array_equal(mask, alpha)
+
+    def test_detector_error_or_cancellation_also_clears_request_caches(self):
+        for cancelled in (False, True):
+            predictor = SimpleNamespace(
+                results=object(), batch=object(), dataset=object(),
+            )
+            token = Event()
+
+            def detect(*args, **kwargs):
+                if cancelled:
+                    token.set()
+                return [SimpleNamespace(boxes=[])]
+
+            def check_cancelled():
+                if token.is_set():
+                    raise ProcessingCancelledError()
+
+            with (
+                self.subTest(cancelled=cancelled),
+                patch.object(image_processor, "yolo_model", SimpleNamespace(
+                    predictor=predictor, predict=detect,
+                ), create=True),
+            ):
+                with self.assertRaises(
+                    ProcessingCancelledError if cancelled else PersonNotDetectedError
+                ):
+                    image_processor.person_alpha(
+                        np.zeros((32, 32, 3), dtype=np.uint8), check_cancelled,
+                    )
+                self.assertIsNone(predictor.results)
+                self.assertIsNone(predictor.batch)
+                self.assertIsNone(predictor.dataset)
+
+    def test_wrong_class_and_low_confidence_skip_rembg(self):
+        for result, error in (
+            (person_result(class_id=1), PersonNotDetectedError),
+            (person_result(confidence=0.5), LowConfidenceError),
+        ):
+            with (
+                self.subTest(error=error),
+                patch.object(image_processor, "yolo_model", Mock(
+                    predict=Mock(return_value=[result])
+                ), create=True),
+                patch.object(image_processor, "remove") as remove,
+            ):
+                with self.assertRaises(error):
+                    image_processor.create_passport_photo(self.photo(), "United States")
+                remove.assert_not_called()
+
+    def test_subject_bounds_preserve_soft_pixels_without_coordinate_grid(self):
+        alpha = np.zeros((1024, 1024), dtype=np.float32)
+        alpha[17:1000, 23:999] = 0.001
+        with patch.object(image_processor.np, "where", side_effect=AssertionError):
+            self.assertEqual(image_processor.subject_bounds(alpha), (23, 998, 17, 999))
+
+    def test_empty_subject_mask_is_rejected(self):
+        with self.assertRaises(SubjectSeparationError):
+            image_processor.subject_bounds(np.zeros((32, 32), dtype=np.float32))
+
+    def test_smoothing_kernel_sizes_scale_and_stay_odd(self):
+        for scale in (0.01, 0.5, 0.75, 1.0):
+            for size in (7, 31):
+                result = image_processor.scaled_kernel_size(size, scale)
+                self.assertGreaterEqual(result, 1)
+                self.assertEqual(result % 2, 1)
+        self.assertEqual(image_processor.scaled_kernel_size(31, 1.0), 31)
+        self.assertEqual(image_processor.scaled_kernel_size(7, 1.0), 7)
+        self.assertEqual(image_processor.scaled_kernel_size(31, 0.5), 17)
+        self.assertEqual(image_processor.scaled_kernel_size(7, 0.5), 5)
+
+    def test_jpeg_is_downsampled_during_decode(self):
+        for side, flag in (
+            (1024, cv2.IMREAD_COLOR),
+            (2048, cv2.IMREAD_REDUCED_COLOR_2),
+            (4096, cv2.IMREAD_REDUCED_COLOR_4),
+            (8192, cv2.IMREAD_REDUCED_COLOR_8),
+        ):
+            sizes = []
+
+            def remove(image, **kwargs):
+                sizes.append(image.size)
+                raise ProcessingCancelledError()
+
+            with (
+                self.subTest(side=side),
+                patch.object(image_processor.cv2, "imdecode", wraps=cv2.imdecode) as decode,
+                patch.object(image_processor, "yolo_model", Mock(
+                    predict=Mock(return_value=[person_result()])
+                ), create=True),
+                patch.object(image_processor, "rembg_session", object(), create=True),
+                patch.object(image_processor, "remove", side_effect=remove),
+            ):
+                with self.assertRaises(ProcessingCancelledError):
+                    image_processor.create_passport_photo(
+                        self.photo((side, 32), format="JPEG"), "United States"
+                    )
+                self.assertEqual(decode.call_args.args[1], flag)
+                self.assertEqual(max(sizes[0]), 1024)
+
+    def test_mask_only_pipeline_preserves_country_sizes_and_rgb(self):
+        for country, (width_mm, height_mm) in image_processor.passport_photo_sizes_mm.items():
+            stages = []
+
+            def detect(*args, **kwargs):
+                stages.append("detect")
+                return [person_result((128, 96))]
+
+            def remove(image, **kwargs):
+                stages.append("remove")
+                self.assertEqual(image.mode, "RGB")
+                return image_processor.Image.new("L", image.size, 255)
+
+            session = object()
+            with (
+                self.subTest(country=country),
+                patch.object(image_processor, "yolo_model",
+                             SimpleNamespace(predict=detect), create=True),
+                patch.object(image_processor, "rembg_session", session, create=True),
+                patch.object(image_processor, "remove", side_effect=remove) as removal,
+                patch.object(image_processor, "create_rembg_session") as create,
+            ):
+                output = image_processor.create_passport_photo(self.photo(), country)
+                self.assertEqual(stages, ["detect", "remove"])
+                self.assertEqual(removal.call_args.kwargs, {
+                    "session": session, "only_mask": True,
+                })
+                create.assert_not_called()
+                with image_processor.Image.open(io.BytesIO(output)) as result:
+                    self.assertEqual(result.format, "JPEG")
+                    self.assertEqual(result.mode, "RGB")
+                    self.assertEqual(result.size, (int(width_mm * 11.81), int(height_mm * 11.81)))
+                    center = result.getpixel((result.width // 2, result.height // 2))
+                    np.testing.assert_allclose(center, (25, 65, 105), atol=3)
+                    np.testing.assert_allclose(result.getpixel((0, 0)), (255, 255, 255), atol=3)
+
+    def test_in_place_merge_matches_previous_alpha_and_compositing(self):
+        width, height = 128, 96
+        rng = np.random.default_rng(42)
+        raw_alpha = rng.integers(0, 256, (height, width), dtype=np.uint8)
+        yolo_alpha = np.zeros((height, width), dtype=np.float32)
+        yolo_alpha[24:72, 32:96] = rng.random((48, 64), dtype=np.float32)
+        yolo_alpha[28:68, 36:92] = 1.0
+        rembg_alpha = raw_alpha.astype(np.float32) / 255.0
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))
+        binary = (yolo_alpha > 0.5).astype(np.uint8)
+        eroded = cv2.erode(binary, kernel, iterations=1)
+        dilated = cv2.dilate(binary, kernel, iterations=2)
+        expected = np.zeros((height, width), dtype=np.float32)
+        expected[eroded == 1] = rembg_alpha[eroded == 1]
+        transition = (dilated == 1) & (eroded == 0)
+        weights = np.clip(yolo_alpha * 2.0, 0.0, 1.0)
+        expected[transition] = rembg_alpha[transition] * weights[transition]
+        expected[dilated == 0] = 0.0
+        for region in (eroded == 1, transition, dilated == 0):
+            self.assertTrue(region.any())
+        expected_u8 = (expected * 255).astype(np.uint8)
+        expected_mask = cv2.GaussianBlur(expected_u8, (7, 7), 0)
+        px1, px2, py1, py2 = image_processor.subject_bounds(expected)
+        canvas_h = (py2 - py1) / 0.90
+        canvas_w, canvas_h = int(canvas_h * (51 / 51)), int(canvas_h)
+        canvas = image_processor.Image.new("RGB", (canvas_w, canvas_h), "white")
+        rgba = image_processor.Image.new("RGBA", (width, height), (25, 65, 105, 255))
+        rgba.putalpha(image_processor.Image.fromarray(expected_mask))
+        canvas.paste(rgba, (int(canvas_w / 2 - (px1 + (px2 - px1) / 2)),
+                           int(canvas_h - py2)), rgba)
+        expected_jpeg = io.BytesIO()
+        canvas.resize((602, 602), image_processor.Image.Resampling.LANCZOS).save(
+            expected_jpeg, format="JPEG", quality=95
+        )
+        with (
+            patch.object(image_processor, "yolo_model", Mock(
+                predict=Mock(return_value=[person_result((width, height), mask=yolo_alpha)])
+            ), create=True),
+            patch.object(image_processor, "rembg_session", object(), create=True),
+            patch.object(image_processor, "remove", return_value=image_processor.Image.fromarray(raw_alpha)),
+            patch.object(image_processor.cv2, "GaussianBlur", wraps=cv2.GaussianBlur) as blur,
+        ):
+            output = image_processor.create_passport_photo(self.photo(), "United States")
+            np.testing.assert_array_equal(blur.call_args.args[0], expected_u8)
+            self.assertEqual(output, expected_jpeg.getvalue())
+
+    def test_large_input_uses_scaled_smoothing_kernels(self):
+        with (
+            patch.object(image_processor, "yolo_model", Mock(
+                predict=Mock(return_value=[person_result((1024, 512))])
+            ), create=True),
+            patch.object(image_processor, "rembg_session", object(), create=True),
+            patch.object(image_processor, "remove", side_effect=lambda image, **_:
+                         image_processor.Image.new("L", image.size, 255)),
+            patch.object(image_processor.cv2, "getStructuringElement",
+                         wraps=cv2.getStructuringElement) as kernel,
+            patch.object(image_processor.cv2, "GaussianBlur", wraps=cv2.GaussianBlur) as blur,
+        ):
+            image_processor.create_passport_photo(self.photo((2048, 1024)), "United States")
+        kernel.assert_called_once_with(cv2.MORPH_ELLIPSE, (17, 17))
+        self.assertEqual(blur.call_args.args[1], (5, 5))
+
+    def test_cancellation_closes_temporary_images(self):
+        cancelled = Event()
+        images = []
+
+        def remove(image, **kwargs):
+            mask = image_processor.Image.new("L", image.size, 255)
+            images.extend([image, mask])
+            cancelled.set()
+            return mask
+
+        with (
+            patch.object(image_processor, "yolo_model", Mock(
+                predict=Mock(return_value=[person_result((128, 96))])
+            ), create=True),
+            patch.object(image_processor, "rembg_session", object(), create=True),
+            patch.object(image_processor, "remove", side_effect=remove),
+        ):
+            with self.assertRaises(ProcessingCancelledError):
+                image_processor.create_passport_photo(self.photo(), "United States", cancelled)
+        self.assertEqual(len(images), 2)
+        for image in images:
+            with self.assertRaises(ValueError):
+                image.getpixel((0, 0))
+
+    def test_unusable_rembg_masks_fail_without_export(self):
+        for value, error in ((0, SubjectSeparationError), (255, SubjectTooSmallError)):
+            alpha = np.zeros((96, 128), dtype=np.uint8)
+            alpha[48, 64] = value
+            with (
+                self.subTest(value=value),
+                patch.object(image_processor, "yolo_model", Mock(
+                    predict=Mock(return_value=[person_result((128, 96))])
+                ), create=True),
+                patch.object(image_processor, "rembg_session", object(), create=True),
+                patch.object(image_processor, "remove",
+                             return_value=image_processor.Image.fromarray(alpha)),
+            ):
+                with self.assertRaises(error):
+                    image_processor.create_passport_photo(self.photo(), "United States")
 
 
 class DisconnectTests(unittest.IsolatedAsyncioTestCase):
@@ -498,8 +867,8 @@ class UploadBoundaryTests(unittest.IsolatedAsyncioTestCase):
             status, _, _, _ = await self.request(self.multipart())
         self.assertEqual(status, 200)
 
-    async def test_two_photos_run_concurrently_and_two_wait_in_order(self):
-        started = {name: Event() for name in (b"first", b"second")}
+    async def test_one_photo_runs_and_two_wait_in_order(self):
+        started = {b"first": Event()}
         releases = {name: Event() for name in started}
         queued = [asyncio.Event() for _ in range(MAX_WAITING_JOBS)]
         calls = []
@@ -537,27 +906,20 @@ class UploadBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 for name, event in started.items():
                     tasks.append(asyncio.create_task(self.request(self.multipart(name))))
                     self.assertTrue(await asyncio.to_thread(event.wait, 2))
-                self.assertEqual(processing_pool.active, 2)
-                for index, name in enumerate((b"third", b"fourth")):
+                self.assertEqual(processing_pool.active, 1)
+                for index, name in enumerate((b"second", b"third")):
                     tasks.append(asyncio.create_task(self.request(self.multipart(name))))
                     await asyncio.wait_for(queued[index].wait(), 2)
-                self.assertEqual(calls, [b"first", b"second"])
-                self.assertEqual(reads, [b"first", b"second"])
+                self.assertEqual(calls, [b"first"])
+                self.assertEqual(reads, [b"first"])
                 self.assertTrue(all(not task.done() for task in tasks))
-                status, _, _, read = await self.request(self.multipart(b"fifth"))
+                status, _, _, read = await self.request(self.multipart(b"fourth"))
                 self.assertEqual((status, read), (503, 0))
                 releases[b"first"].set()
-                # The waiting jobs must progress using the freed worker even
-                # while the second original job remains blocked.
-                responses = await asyncio.wait_for(
-                    asyncio.gather(tasks[0], tasks[2], tasks[3]), 3
-                )
-                self.assertEqual([response[0] for response in responses], [200] * 3)
-                self.assertFalse(tasks[1].done())
-                releases[b"second"].set()
                 responses = await asyncio.wait_for(asyncio.gather(*tasks), 3)
-                self.assertEqual([response[0] for response in responses], [200] * 4)
-                self.assertEqual(calls, [b"first", b"second", b"third", b"fourth"])
+                self.assertEqual([response[0] for response in responses], [200] * 3)
+                self.assertEqual(calls, [b"first", b"second", b"third"])
+                self.assertEqual(reads, calls)
             finally:
                 for release in releases.values():
                     release.set()
@@ -631,7 +993,7 @@ class UploadBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
 class ProcessingQueueTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        # Also retain coverage for the supported single-worker configuration.
+        # Exercise the default single-worker queue independently of HTTP.
         self.pool = ProcessingPool(capacity=1)
         self.permits = []
         self.waiters = []
@@ -738,7 +1100,8 @@ class ProcessingQueueTests(unittest.IsolatedAsyncioTestCase):
 
 class NativeCapacityTests(unittest.IsolatedAsyncioTestCase):
     async def test_cancelled_job_keeps_its_slot_while_other_worker_progresses(self):
-        pool = ProcessingPool(max_waiting=0)
+        # Retain coverage if a higher-memory deployment opts into concurrency.
+        pool = ProcessingPool(capacity=2, max_waiting=0)
         permits = [pool.try_acquire() for _ in range(2)]
         started = [Event(), Event()]
         releases = [Event(), Event()]
