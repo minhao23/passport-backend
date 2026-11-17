@@ -28,6 +28,41 @@ in `frontend/lib/`; the server-side proxy remains in `app/api/process/route.ts`.
 Run `npm run format` to format frontend TypeScript, TSX, and CSS, or
 `npm run format:check` to check formatting without changing files.
 
+### Backend structure
+
+`src/main.py` only configures the app, middleware, and startup lifespan.
+`src/api/` contains the health and photo routes, plus the shared public error
+responses. `src/request_limits.py` bounds uploads before multipart parsing.
+
+`src/services/image_processor.py` composes the image pipeline. Its stages live
+in `utils/image_loading.py`, `services/segmentation.py`, and
+`services/photo_composition.py`. `services/model_runtime.py` owns the reusable
+models and detector lock; native inference imports are deferred until startup
+or processing. `services/photo_requests.py` manages queue waits, disconnects,
+and cancellation, while `services/processing_jobs.py` bounds admission and
+native work. Shared limits, country sizes, and image-header checks remain in
+`src/utils/`; public error classes remain in `src/errors/`.
+
+The refactor keeps the same model, image formulas, country sizes, request
+limits, and HTTP response contract. The Uvicorn target remains `main:app`
+with `--app-dir src`.
+
+Python formatting and linting use the pinned Ruff development dependency:
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m ruff format src tests
+python -m ruff check src tests
+```
+
+Run these in the activated `.venv` after installing the runtime requirements.
+For a `uv`-created environment without pip, use
+`uv pip install --python .venv/bin/python -r requirements-dev.txt`.
+Use `python -m ruff format --check src tests` for a read-only formatting check.
+Ruff checks imports, common Python errors, unsafe patterns, and Python 3.11
+syntax; its configuration lives in `pyproject.toml`. Production Docker images
+continue to install only `requirements.txt`.
+
 ## Local development
 
 Use Node.js 20.9+ (a current LTS release is recommended) and Python 3.11.
@@ -148,6 +183,8 @@ recognizes the original backend's known detection/decode error messages.
 
 ```bash
 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python -m ruff check src tests
+.venv/bin/python -m ruff format --check src tests
 npm run format:check
 npm run typecheck
 npm run build

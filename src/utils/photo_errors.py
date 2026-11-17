@@ -1,5 +1,5 @@
 """Compatibility imports; new code should import from errors."""
 
-from errors import PhotoIssueError, PersonNotDetectedError
+from errors import PersonNotDetectedError, PhotoIssueError
 
 __all__ = ["PhotoIssueError", "PersonNotDetectedError"]

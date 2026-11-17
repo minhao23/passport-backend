@@ -1,0 +1,2 @@
+# Development tooling only; production installs requirements.txt.
+ruff==0.14.5

@@ -39,7 +39,8 @@ RUN python -c "from rembg.sessions.u2net_human_seg import U2netHumanSegSession; 
 COPY best.pt ./best.pt
 COPY src/ ./src/
 
-RUN PYTHONPATH=src python -c "import main"
+# App imports are lightweight; validate native dependencies explicitly at build time.
+RUN PYTHONPATH=src python -c "import main; import rembg; import ultralytics"
 
 EXPOSE 8000
 

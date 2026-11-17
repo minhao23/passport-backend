@@ -6,7 +6,6 @@ from contextlib import closing
 import cv2
 import numpy as np
 from PIL import Image
-from rembg import remove
 
 from errors import LowConfidenceError, PersonNotDetectedError, SubjectSeparationError
 from services import model_runtime
@@ -69,11 +68,11 @@ def merge_subject_alpha(
     edge_scale: float,
     check_cancelled: CancellationCheck,
 ) -> tuple[np.ndarray, SubjectBounds]:
+    from rembg import remove
+
     check_cancelled()
     with closing(
-        remove(
-            photo, session=model_runtime.get_background_session(), only_mask=True
-        )
+        remove(photo, session=model_runtime.get_background_session(), only_mask=True)
     ) as rembg_mask:
         # Native inference finishes its current call before cancellation can stop it.
         check_cancelled()

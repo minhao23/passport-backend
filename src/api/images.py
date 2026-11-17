@@ -4,11 +4,6 @@ from typing import Annotated
 from fastapi import APIRouter, File, Request, Response, UploadFile
 
 from api.responses import error_response
-from services.image_processor import create_passport_photo
-from services.photo_requests import process_uploaded_photo
-from services.processing_jobs import processing_pool
-from utils.limits import ACCEPTED_CONTENT_TYPES, MAX_FILE_BYTES
-from utils.passport_sizes import passport_photo_sizes_mm
 from errors import (
     InternalServerError,
     InvalidCountryError,
@@ -18,6 +13,11 @@ from errors import (
     ServiceBusyError,
     UploadTooLargeError,
 )
+from services.image_processor import create_passport_photo
+from services.photo_requests import process_uploaded_photo
+from services.processing_jobs import processing_pool
+from utils.limits import ACCEPTED_CONTENT_TYPES, MAX_FILE_BYTES
+from utils.passport_sizes import passport_photo_sizes_mm
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -47,7 +47,8 @@ async def process_image(
             request, file, country, permit, create_passport_photo
         )
         return Response(
-            content=processed_image_bytes, media_type="image/jpeg",
+            content=processed_image_bytes,
+            media_type="image/jpeg",
             headers={"Cache-Control": "no-store"},
         )
 

@@ -1,6 +1,6 @@
-passport_photo_sizes_mm = {
+passport_photo_sizes_mm: dict[str, tuple[int, int]] = {
     "Albania": (40, 50),
-    "Argentina": (38, 38),  
+    "Argentina": (38, 38),
     "Australia": (35, 45),
     "Austria": (35, 45),
     "Bangladesh": (45, 55),
@@ -11,7 +11,7 @@ passport_photo_sizes_mm = {
     "Cambodia": (35, 45),
     "Canada": (50, 70),
     "China": (33, 48),
-    "Colombia": (38, 64),  
+    "Colombia": (38, 64),
     "Congo": (51, 51),
     "Costa Rica": (35, 45),
     "Croatia": (35, 45),
@@ -73,5 +73,5 @@ passport_photo_sizes_mm = {
     "Uzbekistan": (35, 45),
     "Venezuela": (51, 51),
     "Vietnam": (40, 60),
-    "Zimbabwe": (51, 51)
+    "Zimbabwe": (51, 51),
 }

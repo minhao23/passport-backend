@@ -4,25 +4,27 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 
-def reference_person_alpha(processor, image, check_cancelled):
+def reference_person_alpha(runtime, image, check_cancelled):
     """The pre-runtime-tuning detection path, including its retained caches."""
     import cv2
     import numpy as np
 
+    from errors import LowConfidenceError, PersonNotDetectedError
+
     height, width = image.shape[:2]
-    with processor.yolo_lock:
+    with runtime.yolo_lock:
         check_cancelled()
-        result = processor.yolo_model.predict(image, conf=0.1, verbose=False)[0]
+        result = runtime.get_detector().predict(image, conf=0.1, verbose=False)[0]
     check_cancelled()
     if len(result.boxes) == 0 or int(result.boxes.cls[0].item()) != 0:
-        raise processor.PersonNotDetectedError()
+        raise PersonNotDetectedError()
     if result.boxes.conf[0].item() < 0.65:
-        raise processor.LowConfidenceError()
+        raise LowConfidenceError()
     if result.masks is not None:
         mask = result.masks.data[0].cpu().numpy()
         mask = cv2.resize(mask, (width, height), interpolation=cv2.INTER_LINEAR)
@@ -34,35 +36,40 @@ def reference_person_alpha(processor, image, check_cancelled):
 
 
 def probe(args):
+    import resource
     from concurrent.futures import ThreadPoolExecutor
     from contextlib import closing
-    import resource
 
     import numpy as np
     from PIL import Image
-    from rembg import new_session
+    from rembg import new_session, remove
     from ultralytics import ASSETS
+
+    from errors import LowConfidenceError, PersonNotDetectedError
     from services import image_processor as processor
+    from services import model_runtime
 
     if args.profile == "reference":
-        processor.create_rembg_session = lambda name: new_session(
+        model_runtime.create_rembg_session = lambda name: new_session(
             name, providers=["CPUExecutionProvider"]
         )
         processor.person_alpha = lambda image, check: reference_person_alpha(
-            processor, image, check
+            model_runtime, image, check
         )
 
     paths = [Path(path) for path in args.image] or [
-        ASSETS / "bus.jpg", ASSETS / "zidane.jpg",
+        ASSETS / "bus.jpg",
+        ASSETS / "zidane.jpg",
     ]
     for path in paths:
         if not path.is_file():
             raise FileNotFoundError(f"Missing fixture: {path}; supply --image instead")
 
-    divisor = 1024 ** 2 if sys.platform == "darwin" else 1024
-    peak_mib = lambda: round(
-        resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / divisor, 1
-    )
+    divisor = 1024**2 if sys.platform == "darwin" else 1024
+
+    def peak_mib():
+        return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / divisor, 1)
+
     report = {
         "profile": args.profile,
         "imports_peak_mib": peak_mib(),
@@ -70,7 +77,7 @@ def probe(args):
         "jpeg_hashes": {},
         "photo_errors": {},
     }
-    processor.load_models()
+    model_runtime.load_models()
     report["models_peak_mib"] = peak_mib()
 
     with ThreadPoolExecutor(max_workers=1) as worker:
@@ -78,16 +85,23 @@ def probe(args):
             key = f"{index}:{path.name}"
             with Image.open(path) as opened:
                 with closing(opened.convert("RGB")) as rgb:
+
                     def mask_hash():
-                        with closing(processor.remove(
-                            rgb, session=processor.rembg_session, only_mask=True
-                        )) as mask:
-                            return hashlib.sha256(np.asarray(mask).tobytes()).hexdigest()
+                        with closing(
+                            remove(
+                                rgb,
+                                session=model_runtime.get_background_session(),
+                                only_mask=True,
+                            )
+                        ) as mask:
+                            return hashlib.sha256(
+                                np.asarray(mask).tobytes()
+                            ).hexdigest()
 
                     for round_number in range(args.rounds):
-                        report["mask_hashes"][f"{key}:{round_number}"] = (
-                            worker.submit(mask_hash).result()
-                        )
+                        report["mask_hashes"][f"{key}:{round_number}"] = worker.submit(
+                            mask_hash
+                        ).result()
 
             photo = path.read_bytes()
             for round_number in range(args.rounds):
@@ -97,14 +111,17 @@ def probe(args):
                         jpeg = worker.submit(
                             processor.create_passport_photo, photo, country
                         ).result()
-                    except processor.PersonNotDetectedError:
+                    except PersonNotDetectedError:
                         report["photo_errors"][output_key] = "PERSON_NOT_DETECTED"
-                    except processor.LowConfidenceError:
+                    except LowConfidenceError:
                         report["photo_errors"][output_key] = "LOW_CONFIDENCE"
                     else:
-                        report["jpeg_hashes"][output_key] = hashlib.sha256(jpeg).hexdigest()
-            if args.profile == "optimized" and processor.yolo_model.predictor is not None:
-                predictor = processor.yolo_model.predictor
+                        report["jpeg_hashes"][output_key] = hashlib.sha256(
+                            jpeg
+                        ).hexdigest()
+            detector = model_runtime.get_detector()
+            if args.profile == "optimized" and detector.predictor is not None:
+                predictor = detector.predictor
                 assert predictor.results is None
                 assert predictor.batch is None
                 assert predictor.dataset is None
@@ -117,19 +134,28 @@ def compare(args):
     reports = []
     for profile in ("reference", "optimized"):
         command = [
-            sys.executable, str(Path(__file__).resolve()),
-            "--profile", profile, "--app-dir", args.app_dir,
-            "--rounds", str(args.rounds),
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "--profile",
+            profile,
+            "--app-dir",
+            args.app_dir,
+            "--rounds",
+            str(args.rounds),
         ]
         for image in args.image:
             command.extend(["--image", str(Path(image).resolve())])
         environment = os.environ.copy()
         environment["PYTHONDONTWRITEBYTECODE"] = "1"
         if profile == "optimized":
-            environment.update({
-                "MALLOC_ARENA_MAX": "2", "OMP_NUM_THREADS": "1",
-                "OPENBLAS_NUM_THREADS": "1", "MKL_NUM_THREADS": "1",
-            })
+            environment.update(
+                {
+                    "MALLOC_ARENA_MAX": "2",
+                    "OMP_NUM_THREADS": "1",
+                    "OPENBLAS_NUM_THREADS": "1",
+                    "MKL_NUM_THREADS": "1",
+                }
+            )
         completed = subprocess.run(
             command, env=environment, text=True, capture_output=True, check=True
         )
@@ -146,17 +172,27 @@ def compare(args):
     for field in ("mask_hashes", "jpeg_hashes", "photo_errors"):
         if reference[field] != optimized[field]:
             raise AssertionError(f"Output parity failed: {field}")
-    print(json.dumps({
-        "mask_parity": "PASS",
-        "jpeg_parity": "PASS" if optimized["jpeg_hashes"] else "UNVERIFIED",
-        "identical_masks": len(optimized["mask_hashes"]),
-        "identical_jpegs": len(optimized["jpeg_hashes"]),
-        "reference_peak_mib": reference["peak_mib"],
-        "optimized_peak_mib": optimized["peak_mib"],
-        "peak_reduction_mib": round(reference["peak_mib"] - optimized["peak_mib"], 1),
-    }, indent=2), flush=True)
+    print(
+        json.dumps(
+            {
+                "mask_parity": "PASS",
+                "jpeg_parity": "PASS" if optimized["jpeg_hashes"] else "UNVERIFIED",
+                "identical_masks": len(optimized["mask_hashes"]),
+                "identical_jpegs": len(optimized["jpeg_hashes"]),
+                "reference_peak_mib": reference["peak_mib"],
+                "optimized_peak_mib": optimized["peak_mib"],
+                "peak_reduction_mib": round(
+                    reference["peak_mib"] - optimized["peak_mib"], 1
+                ),
+            },
+            indent=2,
+        ),
+        flush=True,
+    )
     if not optimized["jpeg_hashes"] and not args.mask_only:
-        raise AssertionError("No accepted portraits; supply representative --image fixtures")
+        raise AssertionError(
+            "No accepted portraits; supply representative --image fixtures"
+        )
 
 
 if __name__ == "__main__":
@@ -168,7 +204,8 @@ if __name__ == "__main__":
     parser.add_argument("--image", action="append", default=[])
     parser.add_argument("--rounds", type=int, default=2)
     parser.add_argument(
-        "--mask-only", action="store_true",
+        "--mask-only",
+        action="store_true",
         help="Allow mask-only parity when YOLO rejects all fixtures; not an end-to-end check",
     )
     arguments = parser.parse_args()

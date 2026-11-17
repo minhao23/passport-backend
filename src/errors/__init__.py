@@ -33,9 +33,7 @@ class QueueWaitTimeoutError(ServiceBusyError):
 class PhotoIssueError(ProcessingError, ValueError):
     code = "PHOTO_ISSUE"
     status_code = 422
-    message = (
-        "Try a clear, well-lit photo with your whole head and shoulders visible."
-    )
+    message = "Try a clear, well-lit photo with your whole head and shoulders visible."
 
 
 class EmptyPhotoError(PhotoIssueError):
@@ -94,9 +92,7 @@ class SubjectSeparationError(PhotoIssueError):
 
 
 class SubjectTooSmallError(PhotoIssueError):
-    message = (
-        "The visible subject is too small to create a photo. Try a closer, clearer photo."
-    )
+    message = "The visible subject is too small to create a photo. Try a closer, clearer photo."
 
 
 class InvalidCountryError(ProcessingError, ValueError):

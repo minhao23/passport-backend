@@ -17,6 +17,7 @@ def create_passport_photo(
     image_bytes: bytes, country: str, cancelled: Event | None = None
 ) -> bytes:
     """Create a white-background JPEG with a bottom-anchored subject."""
+
     def check_cancelled() -> None:
         if cancelled is not None and cancelled.is_set():
             raise ProcessingCancelledError()
@@ -28,7 +29,9 @@ def create_passport_photo(
     yolo_alpha = person_alpha(original_img, check_cancelled)
 
     check_cancelled()
-    with closing(Image.fromarray(cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB))) as full_pil:
+    with closing(
+        Image.fromarray(cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB))
+    ) as full_pil:
         # Drop source pixels before native background removal allocates its buffers.
         del original_img
         alpha, bounds = merge_subject_alpha(

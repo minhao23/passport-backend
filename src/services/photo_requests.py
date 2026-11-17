@@ -50,7 +50,11 @@ async def process_uploaded_photo(
             raise QueueWaitTimeoutError() from exc
         except asyncio.CancelledError:
             current_task = asyncio.current_task()
-            if cancelled.is_set() and current_task is not None and not current_task.cancelling():
+            if (
+                cancelled.is_set()
+                and current_task is not None
+                and not current_task.cancelling()
+            ):
                 raise ProcessingCancelledError() from None
             raise
 
