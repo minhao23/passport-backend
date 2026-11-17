@@ -1,21 +1,29 @@
+"""Bound upload admission and schedule active inference in FIFO order."""
+
+from __future__ import annotations
+
 import asyncio
 from collections import deque
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from threading import BoundedSemaphore, Lock
+from typing import Any, TypeVar
 
 from utils.limits import MAX_ACTIVE_JOBS, MAX_WAITING_JOBS
 
+Result = TypeVar("Result")
+
 
 class ProcessingPermit:
-    def __init__(self, pool):
+    def __init__(self, pool: ProcessingPool) -> None:
         self._pool = pool
         self._submitted = False
         self._released = False
         self._queued = False
         self._active = False
-        self._turn = Future()
+        self._turn: Future[None] = Future()
 
-    async def wait_for_turn(self):
+    async def wait_for_turn(self) -> None:
         with self._pool.lock:
             if self._queued or self._released:
                 raise RuntimeError("Processing permit is no longer available")
@@ -30,7 +38,7 @@ class ProcessingPermit:
             self.release_if_unused()
             raise
 
-    def submit(self, function, *args):
+    def submit(self, function: Callable[..., Result], *args: Any) -> Future[Result]:
         with self._pool.lock:
             if not self._active or self._submitted or self._released:
                 raise RuntimeError("Processing permit is no longer available")
@@ -40,16 +48,16 @@ class ProcessingPermit:
         future.add_done_callback(lambda _: self.release())
         return future
 
-    def release(self):
+    def release(self) -> None:
         with self._pool.lock:
             self._release_locked()
 
-    def release_if_unused(self):
+    def release_if_unused(self) -> None:
         with self._pool.lock:
             if not self._submitted:
                 self._release_locked()
 
-    def _release_locked(self):
+    def _release_locked(self) -> None:
         if self._released:
             return
         self._released = True
@@ -63,19 +71,21 @@ class ProcessingPermit:
 
 
 class ProcessingPool:
-    def __init__(self, capacity=MAX_ACTIVE_JOBS, max_waiting=MAX_WAITING_JOBS):
+    def __init__(
+        self, capacity: int = MAX_ACTIVE_JOBS, max_waiting: int = MAX_WAITING_JOBS
+    ) -> None:
         if capacity < 1 or max_waiting < 0:
             raise ValueError("Processing capacity must be positive and waiting capacity nonnegative")
         self.capacity = capacity
         self.slots = BoundedSemaphore(capacity + max_waiting)
         self.lock = Lock()
         self.active = 0
-        self.waiting = deque()
+        self.waiting: deque[ProcessingPermit] = deque()
         self.executor = ThreadPoolExecutor(
             max_workers=capacity, thread_name_prefix="passport-inference"
         )
 
-    def start_waiters(self):
+    def start_waiters(self) -> None:
         """Called with lock held; never enqueue waiting work in the executor."""
         while self.active < self.capacity and self.waiting:
             permit = self.waiting.popleft()
@@ -83,7 +93,7 @@ class ProcessingPool:
             self.active += 1
             permit._turn.set_result(None)
 
-    def try_acquire(self):
+    def try_acquire(self) -> ProcessingPermit | None:
         if not self.slots.acquire(blocking=False):
             return None
         return ProcessingPermit(self)
