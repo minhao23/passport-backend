@@ -27,10 +27,11 @@ export default function BackgroundComparison() {
     let frame: number;
     let previous: number | undefined;
     function animate(time: number) {
-      const elapsed = previous === undefined ? 0 : Math.min(time - previous, 50);
+      const elapsed =
+        previous === undefined ? 0 : Math.min(time - previous, 50);
       previous = time;
       const delta = direction.current * elapsed * 0.012;
-      setPosition(current => {
+      setPosition((current) => {
         const next = current + delta;
         return Math.max(0, Math.min(100, next));
       });
@@ -47,17 +48,26 @@ export default function BackgroundComparison() {
 
   function updatePosition(event: PointerEvent<HTMLInputElement>) {
     const bounds = event.currentTarget.getBoundingClientRect();
-    setPosition(Math.round(Math.max(0, Math.min(100,
-      ((event.clientX - bounds.left) / bounds.width) * 100,
-    ))));
+    setPosition(
+      Math.round(
+        Math.max(
+          0,
+          Math.min(100, ((event.clientX - bounds.left) / bounds.width) * 100),
+        ),
+      ),
+    );
   }
 
   return (
     <figure className={styles.comparison}>
       <div
         className={styles.stage}
-        onPointerEnter={event => { if (event.pointerType === "mouse") setHovered(true); }}
-        onPointerLeave={event => { if (event.pointerType === "mouse") setHovered(false); }}
+        onPointerEnter={(event) => {
+          if (event.pointerType === "mouse") setHovered(true);
+        }}
+        onPointerLeave={(event) => {
+          if (event.pointerType === "mouse") setHovered(false);
+        }}
       >
         <Image
           src={original}
@@ -69,7 +79,10 @@ export default function BackgroundComparison() {
           draggable={false}
         />
         {/* Clip a full-size layer so dragging never changes the portrait scale. */}
-        <div className={styles.removed} style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}>
+        <div
+          className={styles.removed}
+          style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
+        >
           <Image
             src={removed}
             alt="The same illustrated portrait with a white background"
@@ -79,7 +92,11 @@ export default function BackgroundComparison() {
             draggable={false}
           />
         </div>
-        <div className={styles.divider} style={{ left: `${position}%` }} aria-hidden="true" />
+        <div
+          className={styles.divider}
+          style={{ left: `${position}%` }}
+          aria-hidden="true"
+        />
         <input
           className={styles.control}
           type="range"
@@ -91,15 +108,23 @@ export default function BackgroundComparison() {
           aria-valuetext={`${Math.round(position)}% background removed`}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          onKeyDown={event => {
+          onKeyDown={(event) => {
             setFocused(true);
             if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
               event.preventDefault();
-              setPosition(current => Math.max(0, Math.min(100, current + (event.key === "ArrowRight" ? 1 : -1))));
+              setPosition((current) =>
+                Math.max(
+                  0,
+                  Math.min(
+                    100,
+                    current + (event.key === "ArrowRight" ? 1 : -1),
+                  ),
+                ),
+              );
             }
           }}
-          onChange={event => setPosition(Number(event.target.value))}
-          onPointerDown={event => {
+          onChange={(event) => setPosition(Number(event.target.value))}
+          onPointerDown={(event) => {
             if (event.button !== 0) return;
             event.preventDefault();
             setDragging(true);
@@ -108,10 +133,11 @@ export default function BackgroundComparison() {
             event.currentTarget.setPointerCapture(event.pointerId);
             updatePosition(event);
           }}
-          onPointerMove={event => {
-            if (event.currentTarget.hasPointerCapture(event.pointerId)) updatePosition(event);
+          onPointerMove={(event) => {
+            if (event.currentTarget.hasPointerCapture(event.pointerId))
+              updatePosition(event);
           }}
-          onPointerUp={event => {
+          onPointerUp={(event) => {
             setDragging(false);
             if (event.currentTarget.hasPointerCapture(event.pointerId)) {
               updatePosition(event);

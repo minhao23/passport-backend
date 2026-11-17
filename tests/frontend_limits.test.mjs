@@ -106,6 +106,22 @@ after(async () => {
   }
 });
 
+test("homepage renders the studio, comparison, guide, and navigation", async () => {
+  const response = await fetch(new URL("/", url));
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /<main>/);
+  assert.match(html, /<div[^>]*id="studio"/);
+  assert.match(html, /<select[^>]*id="country"/);
+  assert.match(html, /<input[^>]*id="photo"/);
+  assert.match(html, /<section[^>]*id="photo-tips"/);
+  assert.match(html, /aria-label="Reveal background removal"/);
+  assert.match(html, /aria-label="Main navigation"/);
+  assert.match(html, /<footer/);
+  assert.match(html, /Skip to photo studio/);
+  assert.match(html, /Upload your photo/);
+});
+
 test("valid upload and exact 10 MiB file reach upstream", async () => {
   for (const size of [5, maxFile]) {
     const { response } = await send(form(size));
