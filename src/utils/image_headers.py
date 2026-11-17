@@ -2,14 +2,14 @@ from errors import ImageDimensionsError, InvalidPhotoError
 from utils.limits import MAX_SOURCE_PIXELS, MAX_SOURCE_SIDE
 
 
-def check_dimensions(width, height):
+def check_dimensions(width: int, height: int) -> None:
     if width < 1 or height < 1:
         raise InvalidPhotoError()
     if width * height > MAX_SOURCE_PIXELS or max(width, height) > MAX_SOURCE_SIDE:
         raise ImageDimensionsError()
 
 
-def check_webp_header(data):
+def check_webp_header(data: bytes) -> None:
     """Bound WebP canvases and bitstreams before Pillow constructs a decoder."""
     if not (data[:4] == b"RIFF" and data[8:12] == b"WEBP"):
         return
@@ -22,13 +22,13 @@ def check_webp_header(data):
     while offset < end:
         if offset + 8 > end:
             raise InvalidPhotoError()
-        kind = data[offset:offset + 4]
-        size = int.from_bytes(data[offset + 4:offset + 8], "little")
+        kind = data[offset : offset + 4]
+        size = int.from_bytes(data[offset + 4 : offset + 8], "little")
         start = offset + 8
         offset = start + size + (size & 1)
         if offset > end:
             raise InvalidPhotoError()
-        header = data[start:start + min(size, 10)]
+        header = data[start : start + min(size, 10)]
         if kind == b"VP8X":
             if size != 10 or canvas is not None or start != 20:
                 raise InvalidPhotoError()
@@ -49,14 +49,14 @@ def check_webp_header(data):
                 if size < 10 or header[0] & 1 or header[3:6] != b"\x9d\x01\x2a":
                     raise InvalidPhotoError()
                 image_size = (
-                    int.from_bytes(header[6:8], "little") & 0x3fff,
-                    int.from_bytes(header[8:10], "little") & 0x3fff,
+                    int.from_bytes(header[6:8], "little") & 0x3FFF,
+                    int.from_bytes(header[8:10], "little") & 0x3FFF,
                 )
             else:
-                if size < 5 or header[0] != 0x2f:
+                if size < 5 or header[0] != 0x2F:
                     raise InvalidPhotoError()
                 bits = int.from_bytes(header[1:5], "little")
-                image_size = (1 + (bits & 0x3fff), 1 + ((bits >> 14) & 0x3fff))
+                image_size = (1 + (bits & 0x3FFF), 1 + ((bits >> 14) & 0x3FFF))
             check_dimensions(*image_size)
     if image_size is None or (canvas is not None and canvas != image_size):
         raise InvalidPhotoError()

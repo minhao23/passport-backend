@@ -75,7 +75,9 @@ class ProcessingPool:
         self, capacity: int = MAX_ACTIVE_JOBS, max_waiting: int = MAX_WAITING_JOBS
     ) -> None:
         if capacity < 1 or max_waiting < 0:
-            raise ValueError("Processing capacity must be positive and waiting capacity nonnegative")
+            raise ValueError(
+                "Processing capacity must be positive and waiting capacity nonnegative"
+            )
         self.capacity = capacity
         self.slots = BoundedSemaphore(capacity + max_waiting)
         self.lock = Lock()

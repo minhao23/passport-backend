@@ -1,4 +1,14 @@
-def create_rembg_session(model_name: str):
+"""Low-memory ONNX options for the existing human-segmentation model."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from rembg.sessions.u2net_human_seg import U2netHumanSegSession
+
+
+def create_rembg_session(model_name: str) -> U2netHumanSegSession:
     import onnxruntime as ort
     from rembg.sessions.u2net_human_seg import U2netHumanSegSession
 
@@ -13,6 +23,4 @@ def create_rembg_session(model_name: str):
     options.intra_op_num_threads = 1
     options.inter_op_num_threads = 1
 
-    return U2netHumanSegSession(
-        model_name, options, providers=["CPUExecutionProvider"]
-    )
+    return U2netHumanSegSession(model_name, options, providers=["CPUExecutionProvider"])

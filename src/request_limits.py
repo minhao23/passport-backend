@@ -15,8 +15,11 @@ class UploadLimitsMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if (scope["type"] != "http" or scope["method"] != "POST"
-                or scope["path"].rstrip("/") != "/images/process"):
+        if (
+            scope["type"] != "http"
+            or scope["method"] != "POST"
+            or scope["path"].rstrip("/") != "/images/process"
+        ):
             await self.app(scope, receive, send)
             return
 

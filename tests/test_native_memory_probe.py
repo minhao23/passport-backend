@@ -1,8 +1,8 @@
-from contextlib import redirect_stdout
 import io
 import json
-from types import SimpleNamespace
 import unittest
+from contextlib import redirect_stdout
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import native_memory_probe
@@ -11,7 +11,10 @@ import native_memory_probe
 class NativeProbeReportingTests(unittest.TestCase):
     def arguments(self, mask_only=False):
         return SimpleNamespace(
-            app_dir="src", rounds=2, image=[], mask_only=mask_only,
+            app_dir="src",
+            rounds=2,
+            image=[],
+            mask_only=mask_only,
         )
 
     def report(self, profile, with_jpeg=True):
@@ -33,8 +36,11 @@ class NativeProbeReportingTests(unittest.TestCase):
         reports = [self.report(profile) for profile in ("reference", "optimized")]
         output = io.StringIO()
         with (
-            patch.object(native_memory_probe.subprocess, "run",
-                         side_effect=self.processes(reports)) as run,
+            patch.object(
+                native_memory_probe.subprocess,
+                "run",
+                side_effect=self.processes(reports),
+            ) as run,
             redirect_stdout(output),
         ):
             native_memory_probe.compare(self.arguments())
@@ -56,8 +62,11 @@ class NativeProbeReportingTests(unittest.TestCase):
         ]
         output = io.StringIO()
         with (
-            patch.object(native_memory_probe.subprocess, "run",
-                         side_effect=self.processes(reports)),
+            patch.object(
+                native_memory_probe.subprocess,
+                "run",
+                side_effect=self.processes(reports),
+            ),
             redirect_stdout(output),
         ):
             native_memory_probe.compare(self.arguments(mask_only=True))
@@ -69,8 +78,11 @@ class NativeProbeReportingTests(unittest.TestCase):
             for profile in ("reference", "optimized")
         ]
         with (
-            patch.object(native_memory_probe.subprocess, "run",
-                         side_effect=self.processes(reports)),
+            patch.object(
+                native_memory_probe.subprocess,
+                "run",
+                side_effect=self.processes(reports),
+            ),
             redirect_stdout(io.StringIO()),
         ):
             with self.assertRaisesRegex(AssertionError, "No accepted portraits"):
@@ -83,14 +95,18 @@ class NativeProbeReportingTests(unittest.TestCase):
             optimized[field] = {"changed": "different"}
             with (
                 self.subTest(field=field),
-                patch.object(native_memory_probe.subprocess, "run",
-                             side_effect=self.processes([reference, optimized])),
+                patch.object(
+                    native_memory_probe.subprocess,
+                    "run",
+                    side_effect=self.processes([reference, optimized]),
+                ),
             ):
                 with self.assertRaisesRegex(AssertionError, field):
                     native_memory_probe.compare(self.arguments(mask_only=True))
 
     def test_missing_native_summary_is_an_error(self):
-        with patch.object(native_memory_probe.subprocess, "run",
-                          return_value=Mock(stdout="No result")):
+        with patch.object(
+            native_memory_probe.subprocess, "run", return_value=Mock(stdout="No result")
+        ):
             with self.assertRaisesRegex(RuntimeError, "Incomplete native probe"):
                 native_memory_probe.compare(self.arguments())
