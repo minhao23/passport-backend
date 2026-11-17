@@ -25,9 +25,19 @@ const headlineFont = localFont({
 
 export const metadata: Metadata = {
   title: "Passport Studio | Passport photos without the photo booth",
-  description: "Turn a photo into a passport-sized JPEG with a clean white background. Choose your country, upload, and download.",
+  description:
+    "Turn a photo into a passport-sized JPEG with a clean white background. Choose your country, upload, and download.",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en" className={`${displayFont.variable} ${bodyFont.variable} ${headlineFont.variable}`}><body>{children}</body></html>;
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html
+      lang="en"
+      className={`${displayFont.variable} ${bodyFont.variable} ${headlineFont.variable}`}
+    >
+      <body>{children}</body>
+    </html>
+  );
 }

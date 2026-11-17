@@ -4,7 +4,10 @@ import { UPLOAD_TIMEOUT_MS } from "./processing-limits";
 export const MAX_REQUEST_BYTES = MAX_FILE_SIZE + 64 * 1024;
 
 export class PhotoUploadError extends Error {
-  constructor(message: string, public readonly status = 400) {
+  constructor(
+    message: string,
+    public readonly status = 400,
+  ) {
     super(message);
   }
 }
@@ -12,7 +15,10 @@ export class PhotoUploadError extends Error {
 export async function readPhotoForm(request: Request): Promise<FormData> {
   const length = request.headers.get("content-length");
   if (length && Number(length) > MAX_REQUEST_BYTES) {
-    throw new PhotoUploadError("Please upload one photo of 10 MB or smaller.", 413);
+    throw new PhotoUploadError(
+      "Please upload one photo of 10 MB or smaller.",
+      413,
+    );
   }
   const contentType = request.headers.get("content-type") || "";
   if (!/^multipart\/form-data(?:;|$)/i.test(contentType) || !request.body) {
@@ -23,9 +29,16 @@ export async function readPhotoForm(request: Request): Promise<FormData> {
   let received = 0;
   let timer: ReturnType<typeof setTimeout>;
   const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new PhotoUploadError(
-      "The upload took too long. Check your connection and try again.", 408,
-    )), UPLOAD_TIMEOUT_MS);
+    timer = setTimeout(
+      () =>
+        reject(
+          new PhotoUploadError(
+            "The upload took too long. Check your connection and try again.",
+            408,
+          ),
+        ),
+      UPLOAD_TIMEOUT_MS,
+    );
   });
 
   try {
@@ -35,7 +48,10 @@ export async function readPhotoForm(request: Request): Promise<FormData> {
       if (chunk.done) break;
       received += chunk.value.byteLength;
       if (received > MAX_REQUEST_BYTES) {
-        throw new PhotoUploadError("Please upload one photo of 10 MB or smaller.", 413);
+        throw new PhotoUploadError(
+          "Please upload one photo of 10 MB or smaller.",
+          413,
+        );
       }
       chunks.push(new Uint8Array(chunk.value));
     }
@@ -44,12 +60,17 @@ export async function readPhotoForm(request: Request): Promise<FormData> {
     }).formData();
     const fields = [...form.keys()];
     if (fields.length !== 2 || !form.has("file") || !form.has("country")) {
-      throw new PhotoUploadError("Please upload one photo and select a country.");
+      throw new PhotoUploadError(
+        "Please upload one photo and select a country.",
+      );
     }
     return form;
   } catch (error) {
-    if (error instanceof PhotoUploadError || request.signal.aborted) throw error;
-    throw new PhotoUploadError("We couldn't read this upload. Please try again.");
+    if (error instanceof PhotoUploadError || request.signal.aborted)
+      throw error;
+    throw new PhotoUploadError(
+      "We couldn't read this upload. Please try again.",
+    );
   } finally {
     clearTimeout(timer!);
     // Cancelling IncomingMessage destroys its socket before JSON can be sent.

@@ -16,6 +16,18 @@ Dockerfile.backend Backend-only production image
 Dockerfile.frontend Frontend-only production image
 ```
 
+### Frontend structure
+
+`frontend/app/page.tsx` only composes the page sections. Reusable UI lives in
+`frontend/components/`, with the upload form, feedback, and preview workspace
+grouped under `components/photo-studio/`. `frontend/hooks/use-photo-studio.ts`
+owns photo selection, validation, processing requests, cancellation, and
+preview/result object-URL cleanup. Shared countries, errors, and limits remain
+in `frontend/lib/`; the server-side proxy remains in `app/api/process/route.ts`.
+
+Run `npm run format` to format frontend TypeScript, TSX, and CSS, or
+`npm run format:check` to check formatting without changing files.
+
 ## Local development
 
 Use Node.js 20.9+ (a current LTS release is recommended) and Python 3.11.
@@ -136,6 +148,7 @@ recognizes the original backend's known detection/decode error messages.
 
 ```bash
 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v
+npm run format:check
 npm run typecheck
 npm run build
 node --test tests/frontend_limits.test.mjs
