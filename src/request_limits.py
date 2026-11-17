@@ -2,29 +2,19 @@ import asyncio
 from time import monotonic
 
 from starlette.formparsers import MultiPartException
-from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from api.responses import error_response
 from errors import ServiceBusyError, UploadTimeoutError, UploadTooLargeError
 from services.processing_jobs import processing_pool
 from utils.limits import MAX_REQUEST_BYTES, MAX_UPLOAD_SECONDS
 
 
-def limit_response(error):
-    headers = {"Cache-Control": "no-store"}
-    if isinstance(error, ServiceBusyError):
-        headers["Retry-After"] = "10"
-    return JSONResponse(
-        {"code": error.code, "detail": error.message},
-        status_code=error.status_code,
-        headers=headers,
-    )
-
-
 class UploadLimitsMiddleware:
-    def __init__(self, app):
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if (scope["type"] != "http" or scope["method"] != "POST"
                 or scope["path"].rstrip("/") != "/images/process"):
             await self.app(scope, receive, send)
@@ -32,13 +22,13 @@ class UploadLimitsMiddleware:
 
         length = dict(scope["headers"]).get(b"content-length")
         if length and length.isdigit() and int(length) > MAX_REQUEST_BYTES:
-            await limit_response(UploadTooLargeError())(scope, receive, send)
+            await error_response(UploadTooLargeError())(scope, receive, send)
             return
         # Reserve bounded upload/queue capacity before multipart parsing.
         # The endpoint waits for a separate worker slot after validating the upload.
         permit = processing_pool.try_acquire()
         if permit is None:
-            await limit_response(ServiceBusyError())(scope, receive, send)
+            await error_response(ServiceBusyError())(scope, receive, send)
             return
         scope.setdefault("state", {})["processing_permit"] = permit
         deadline = monotonic() + MAX_UPLOAD_SECONDS
@@ -47,7 +37,7 @@ class UploadLimitsMiddleware:
         body_complete = False
         error_sent = False
 
-        async def limited_receive():
+        async def limited_receive() -> Message:
             nonlocal received, failure, body_complete
             if body_complete:
                 return await receive()
@@ -66,12 +56,12 @@ class UploadLimitsMiddleware:
                 body_complete = not message.get("more_body", False)
             return message
 
-        async def limited_send(message):
+        async def limited_send(message: Message) -> None:
             nonlocal error_sent
             if failure is not None:
                 if not error_sent:
                     error_sent = True
-                    await limit_response(failure)(scope, receive, send)
+                    await error_response(failure)(scope, receive, send)
             else:
                 await send(message)
 
