@@ -1,0 +1,74 @@
+---
+version: 1
+slug: "mponents-photo-studio-photo-workspace-tsx-96682546"
+primary_target: "frontend/components/photo-studio/photo-workspace.tsx"
+related_targets: ["frontend/components/photo-studio/photo-crop-modal.tsx", "frontend/components/photo-studio/photo-upload-form.tsx", "frontend/components/photo-studio/photo-preparation-tips.tsx"]
+---
+
+# Photo crop editor
+
+Mode: Operate. Extend the existing photo workspace without changing its identity.
+The confirmed crop becomes the generation input; preserve the original locally.
+
+## Direction contract
+
+THESIS: Inspect and trim a selected photo before generation, using one rectangular
+selection rather than a multi-tool image editor.
+
+OWN-WORLD: Inherit paper #f7f8f5, ink #334532, muted #586553, line #d6ddd2,
+accent #3d563c, and the existing white photo surfaces. Use existing DM Sans
+controls and Bricolage section typography.
+
+STORY: Double-click the photo (or focus it and press Enter or Space), adjust a
+rectangle, then confirm with a checkmark. No separate Crop photo action is shown,
+per user preference. Cancel leaves the current photo unchanged. Reopening uses
+the original image and saved bounds; generation uses the saved crop.
+
+FIRST VIEWPORT: Centered native dialog, compact left-aligned title and close
+icon above a large image, crop dimensions below, then Reset, Cancel, and a green
+checkmark Save crop action. The close icon has no filled hover treatment or
+initial focus accent; the title receives initial focus, and controls retain
+visible keyboard focus. Cropping instructions are screen-reader-only, with no
+visible tutorial. On phones the editor fits the viewport and its controls wrap
+without obscuring the image.
+
+FORM: Narrow extension of the established workspace. No concept roll applies.
+The signature interaction is directly resizing and moving a rectangular crop.
+Motion is limited to the existing brief control feedback.
+
+## Workspace actions
+
+The desktop workspace gives the previews approximately 62% of its width, with
+responsive preview rows up to 320px tall and photo columns up to 240px wide.
+Use 28px desktop panel padding, 24px at intermediate widths, and compact phone
+gutters. Preserve image aspect ratios, shared caption alignment, and the direct
+double-click crop interaction. Change photo stays content-width beneath its image.
+
+Country and dimensions form one compact summary above the primary action, with
+the size label retained for assistive technology. On stacked tablets, place the
+summary beside the action and use two columns for the tips; phones keep a linear
+photo, summary, action, tips order. No guidance is hidden to make the layout fit.
+
+After cropping, Generate passport photo is available in the country/size panel;
+it invokes the same request handler as the hero form. Successful generation
+replaces this action with Download JPEG and retains automatic download behavior.
+
+Change photo is a restrained outlined secondary action beneath the original,
+consistent with the form. During generation, the crop hint and replacement action
+are hidden without collapsing their space. Cancel sits beneath the result's
+Creating your photo caption, using the same neutral treatment as the form.
+
+Cancellation restores the ready state without a cancellation message or toast.
+Keep the selected photo, crop, and country; restore action focus locally without
+scrolling to the other section. Do not show the generate-above instruction or
+processor-send explanation in the workspace.
+
+Photo tips appear beneath Generate as a plain, readable four-item list, without
+a card or live announcement. Cover upper-body framing, eye-level camera position
+and expression, clear even lighting, and headwear/sunglasses with religious or
+medical exceptions. The armpit crop is framing guidance, not an official size
+rule; UK online applicants instead see advice to retain an uncropped original.
+Keep tips during generation to avoid layout shifts, and remove them when the
+download result appears.
+
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance

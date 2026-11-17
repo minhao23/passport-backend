@@ -28,6 +28,24 @@ in `frontend/lib/`; the server-side proxy remains in `app/api/process/route.ts`.
 Run `npm run format` to format frontend TypeScript, TSX, and CSS, or
 `npm run format:check` to check formatting without changing files.
 
+Double-click a selected photo to open the rectangular crop editor. Keyboard users
+can focus the photo and press Enter or Space. **Save crop** updates the preview and the photo used for generation;
+Cancel or Escape leaves it unchanged. Reset restores the full original on save.
+The original stays in local state for re-cropping without repeated compression.
+Cropping uses original-resolution pixels and lossless PNG export, with the same
+10 MB upload limit. Nothing is sent until **Generate passport photo** is clicked.
+The modal lives in `components/photo-studio/photo-crop-modal.tsx`; pixel geometry
+and export live in `lib/photo-crop.ts`. Run `node --test tests/frontend_crop.test.mjs`
+for the crop/export regression checks.
+
+Each successful generation automatically starts a JPEG download. The result
+panel keeps country and photo size, with a **Download JPEG** button for saving
+again or when the browser blocks automatic downloads. Browser settings determine
+whether a Save dialog appears. Re-rendering, cropping, cancelling, and failed
+requests do not start downloads. The download helper and shared filename live in
+`lib/photo-download.ts`; run `node --test tests/frontend_download.test.mjs` for
+its regression checks.
+
 ### Backend structure
 
 `src/main.py` only configures the app, middleware, and startup lifespan.

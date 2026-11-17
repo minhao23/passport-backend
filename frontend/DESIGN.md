@@ -208,7 +208,9 @@ The protected comparison is square, right-aligned, and at most 460px wide on des
 
 The guide uses `1.06fr 1fr 1.05fr` columns, 36px gaps, and 40px padding. At 1100px padding/gaps become 30px/24px. At 900px it has two columns with the tips spanning a three-column row. At 600px it stacks intro, illustration, and tips into one column with 30px gaps and `30px 25px` padding. At 360px horizontal padding becomes 22px.
 
-The conditional workspace uses `minmax(0, 1.4fr) minmax(0, 1fr)` and stacks at 900px. Photo and details padding is 36px, reducing to 26px at 1100px; phone photo padding is `25px 18px` and details padding is 24px. The output frame follows the selected country's aspect ratio. Keep the result-download action with the workspace heading; on phones the heading and action stack.
+The conditional workspace uses `minmax(0, 1.6fr) minmax(0, 1fr)` and stacks at 900px. Photos lead with columns up to 240px wide and a shared preview row of `clamp(240px, 26vw, 320px)`. Padding is 28px, reducing to 24px at 1100px. The stacked tablet preview row is 280px; phone previews use `clamp(160px, 50vw, 240px)`, `24px 16px` photo padding, and 20px details padding. Preserve image aspect ratios and aligned captions.
+
+Country and dimensions share a compact summary, followed by Generate or Download JPEG and the preparation tips or result guidance. Keep Change photo content-width and attached to its source preview. From 601px through 900px the summary sits beside the primary action and tips use two columns; on phones these return to a linear stack. Keep the tips fully visible rather than collapsing them for density.
 
 Navigation height changes from 100px to 80px at 900px. At 600px the free/no-account note moves from navigation to the form. Footer content wraps at 900px and its middle tagline hides.
 
