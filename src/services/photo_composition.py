@@ -7,7 +7,8 @@ from contextlib import closing
 import numpy as np
 from PIL import Image
 
-from errors import SubjectTooSmallError
+from services.head_framing import FaceBox
+from services.photo_framing import plan_framing
 
 
 def compose_photo(
@@ -16,20 +17,13 @@ def compose_photo(
     bounds: tuple[int, int, int, int],
     size_mm: tuple[int, int],
     check_cancelled: Callable[[], None],
+    face: FaceBox | None = None,
 ) -> bytes:
     check_cancelled()
-    px1, px2, py1, py2 = bounds
     width_mm, height_mm = size_mm
-    center_x = px1 + ((px2 - px1) / 2.0)
-
-    # Preserve the 10% top margin and bottom-anchored composition.
-    canvas_h = (py2 - py1) / 0.90
-    canvas_w, canvas_h = int(canvas_h * (width_mm / height_mm)), int(canvas_h)
-    if canvas_w < 1 or canvas_h < 1:
-        raise SubjectTooSmallError()
-
-    position = (int(canvas_w / 2 - center_x), int(canvas_h - py2))
-    with closing(Image.new("RGB", (canvas_w, canvas_h), (255, 255, 255))) as canvas:
+    canvas_size, position = plan_framing(photo.size, alpha, bounds, size_mm, face)
+    check_cancelled()
+    with closing(Image.new("RGB", canvas_size, (255, 255, 255))) as canvas:
         with closing(Image.fromarray(alpha)) as mask:
             canvas.paste(photo, position, mask)
         check_cancelled()

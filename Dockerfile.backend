@@ -39,8 +39,8 @@ RUN python -c "from rembg.sessions.u2net_human_seg import U2netHumanSegSession; 
 COPY best.pt ./best.pt
 COPY src/ ./src/
 
-# App imports are lightweight; validate native dependencies explicitly at build time.
-RUN PYTHONPATH=src python -c "import main; import rembg; import ultralytics"
+# Validate native dependencies and the shipped face guide before serving requests.
+RUN PYTHONPATH=src python -c "import main; import rembg; import ultralytics; from services.head_framing import _face_detector; _face_detector()"
 
 EXPOSE 8000
 

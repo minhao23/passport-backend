@@ -95,6 +95,13 @@ class SubjectTooSmallError(PhotoIssueError):
     message = "The visible subject is too small to create a photo. Try a closer, clearer photo."
 
 
+class SubjectFramingError(PhotoIssueError):
+    message = (
+        "We couldn't frame this photo cleanly without side borders. Try a wider, "
+        "front-facing photo with your full head and shoulders visible."
+    )
+
+
 class InvalidCountryError(ProcessingError, ValueError):
     code = "INVALID_COUNTRY"
     status_code = 400

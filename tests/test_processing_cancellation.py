@@ -29,6 +29,7 @@ inference_stubs.start()
 def tearDownModule():
     # Discovery imports all modules first; the shared cleanup stack can otherwise
     # remove these stubs after a different test module finishes.
+    face_stub.stop()
     inference_stubs.stop()
 
 
@@ -39,6 +40,7 @@ from errors import (
     LowConfidenceError,
     PersonNotDetectedError,
     ProcessingCancelledError,
+    SubjectFramingError,
     SubjectSeparationError,
     SubjectTooSmallError,
 )
@@ -54,6 +56,9 @@ from utils.limits import (
     MAX_WORKING_SIDE,
 )
 from utils.passport_sizes import passport_photo_sizes_mm
+
+face_stub = patch("services.image_processor.detect_face", return_value=None)
+face_stub.start()
 
 
 def webp_chunk(kind, payload):
@@ -602,6 +607,41 @@ class ReducedMemoryTests(unittest.TestCase):
                 self.assertEqual(decode.call_args.args[1], flag)
                 self.assertEqual(max(sizes[0]), 1024)
 
+    def test_face_guide_is_passed_to_composition_before_source_release(self):
+        stages = []
+        face = (38, 20, 52, 55)
+
+        def locate(photo, person, check_cancelled):
+            self.assertEqual(photo.shape, (96, 128, 3))
+            self.assertTrue(person.all())
+            stages.append("face")
+            return face
+
+        def remove(image, **kwargs):
+            stages.append("remove")
+            return Image.new("L", image.size, 255)
+
+        with (
+            patch.object(
+                model_runtime,
+                "yolo_model",
+                Mock(predict=Mock(return_value=[person_result((128, 96))])),
+                create=True,
+            ),
+            patch.object(model_runtime, "rembg_session", object(), create=True),
+            patch.object(image_processor, "detect_face", side_effect=locate),
+            patch("rembg.remove", side_effect=remove),
+            patch.object(
+                image_processor, "compose_photo", return_value=b"jpeg"
+            ) as export,
+        ):
+            self.assertEqual(
+                image_processor.create_passport_photo(self.photo(), "United States"),
+                b"jpeg",
+            )
+        self.assertEqual(stages, ["face", "remove"])
+        self.assertEqual(export.call_args.args[-1], face)
+
     def test_mask_only_pipeline_preserves_country_sizes_and_rgb(self):
         for country, (width_mm, height_mm) in passport_photo_sizes_mm.items():
             stages = []
@@ -650,7 +690,7 @@ class ReducedMemoryTests(unittest.TestCase):
                         result.getpixel((0, 0)), (255, 255, 255), atol=3
                     )
 
-    def test_in_place_merge_matches_previous_alpha_and_compositing(self):
+    def test_in_place_merge_matches_previous_alpha_and_bounds(self):
         width, height = 128, 96
         rng = np.random.default_rng(42)
         raw_alpha = rng.integers(0, 256, (height, width), dtype=np.uint8)
@@ -672,41 +712,19 @@ class ReducedMemoryTests(unittest.TestCase):
             self.assertTrue(region.any())
         expected_u8 = (expected * 255).astype(np.uint8)
         expected_mask = cv2.GaussianBlur(expected_u8, (7, 7), 0)
-        px1, px2, py1, py2 = segmentation.subject_bounds(expected)
-        canvas_h = (py2 - py1) / 0.90
-        canvas_w, canvas_h = int(canvas_h * (51 / 51)), int(canvas_h)
-        canvas = Image.new("RGB", (canvas_w, canvas_h), "white")
-        rgba = Image.new("RGBA", (width, height), (25, 65, 105, 255))
-        rgba.putalpha(Image.fromarray(expected_mask))
-        canvas.paste(
-            rgba,
-            (int(canvas_w / 2 - (px1 + (px2 - px1) / 2)), int(canvas_h - py2)),
-            rgba,
-        )
-        expected_jpeg = io.BytesIO()
-        canvas.resize((602, 602), Image.Resampling.LANCZOS).save(
-            expected_jpeg, format="JPEG", quality=95
-        )
+        expected_bounds = segmentation.subject_bounds(expected)
         with (
-            patch.object(
-                model_runtime,
-                "yolo_model",
-                Mock(
-                    predict=Mock(
-                        return_value=[person_result((width, height), mask=yolo_alpha)]
-                    )
-                ),
-                create=True,
-            ),
+            Image.new("RGB", (width, height), (25, 65, 105)) as photo,
             patch.object(model_runtime, "rembg_session", object(), create=True),
             patch("rembg.remove", return_value=Image.fromarray(raw_alpha)),
             patch.object(cv2, "GaussianBlur", wraps=cv2.GaussianBlur) as blur,
         ):
-            output = image_processor.create_passport_photo(
-                self.photo(), "United States"
+            mask, bounds = segmentation.merge_subject_alpha(
+                photo, yolo_alpha, 1.0, lambda: None
             )
             np.testing.assert_array_equal(blur.call_args.args[0], expected_u8)
-            self.assertEqual(output, expected_jpeg.getvalue())
+            np.testing.assert_array_equal(mask, expected_mask)
+            self.assertEqual(bounds, expected_bounds)
 
     def test_large_input_uses_scaled_smoothing_kernels(self):
         with (
@@ -779,6 +797,45 @@ class ReducedMemoryTests(unittest.TestCase):
                 with self.assertRaises(error):
                     image_processor.create_passport_photo(self.photo(), "United States")
 
+    def test_rejected_framing_closes_images_without_export(self):
+        inset_alpha = np.zeros((400, 600), dtype=np.uint8)
+        inset_alpha[80:, 210:390] = 255
+        for name, size, alpha in (
+            ("narrow source", (64, 128), None),
+            ("inset mask", (600, 400), inset_alpha),
+        ):
+            with self.subTest(case=name):
+                images = []
+                photo = self.photo(size)
+
+                def remove(image, *, alpha=alpha, images=images, **kwargs):
+                    mask = (
+                        Image.fromarray(alpha)
+                        if alpha is not None
+                        else Image.new("L", image.size, 255)
+                    )
+                    images.extend((image, mask))
+                    return mask
+
+                with (
+                    patch.object(
+                        model_runtime,
+                        "yolo_model",
+                        Mock(predict=Mock(return_value=[person_result(size)])),
+                        create=True,
+                    ),
+                    patch.object(model_runtime, "rembg_session", object(), create=True),
+                    patch("rembg.remove", side_effect=remove),
+                    patch.object(Image.Image, "save") as export,
+                ):
+                    with self.assertRaises(SubjectFramingError):
+                        image_processor.create_passport_photo(photo, "United States")
+                    export.assert_not_called()
+                self.assertEqual(len(images), 2)
+                for image in images:
+                    with self.assertRaises(ValueError):
+                        image.getpixel((0, 0))
+
 
 class DisconnectTests(unittest.IsolatedAsyncioTestCase):
     def upload(self):
@@ -823,10 +880,18 @@ class DisconnectTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.media_type, "image/jpeg")
         self.assertEqual(response.body, b"jpeg")
 
-        with patch("api.images.create_passport_photo", side_effect=InvalidPhotoError()):
-            response = await process_image(request, "United States", self.upload())
-        self.assertEqual(response.status_code, 422)
-        self.assertIn(b"PHOTO_ISSUE", response.body)
+        for error in (InvalidPhotoError(), SubjectFramingError()):
+            with (
+                self.subTest(error=type(error).__name__),
+                patch("api.images.create_passport_photo", side_effect=error),
+            ):
+                response = await process_image(request, "United States", self.upload())
+            self.assertEqual(response.status_code, 422)
+            self.assertEqual(
+                json.loads(response.body),
+                {"code": "PHOTO_ISSUE", "detail": error.message},
+            )
+            self.assertEqual(response.headers["cache-control"], "no-store")
 
     async def test_unexpected_worker_errors_are_logged_without_exposing_details(self):
         request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))

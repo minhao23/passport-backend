@@ -53,10 +53,12 @@ its regression checks.
 responses. `src/request_limits.py` bounds uploads before multipart parsing.
 
 `src/services/image_processor.py` composes the image pipeline. Its stages live
-in `utils/image_loading.py`, `services/segmentation.py`, and
-`services/photo_composition.py`. `services/model_runtime.py` owns the reusable
-models and detector lock; native inference imports are deferred until startup
-or processing. `services/photo_requests.py` manages queue waits, disconnects,
+in `utils/image_loading.py`, `services/segmentation.py`, `services/head_framing.py`,
+`services/photo_framing.py`, and `services/photo_composition.py`.
+`services/model_runtime.py` owns the reusable segmentation models and detector
+lock; `services/head_framing.py` reuses the separate face detector under its own
+lock. Native inference imports are deferred until startup or processing.
+`services/photo_requests.py` manages queue waits, disconnects,
 and cancellation, while `services/processing_jobs.py` bounds admission and
 native work. Shared limits, country sizes, and image-header checks remain in
 `src/utils/`; public error classes remain in `src/errors/`.
@@ -184,10 +186,11 @@ FastAPI returns JSON with `code` and `detail` for processing failures:
 | `PHOTO_ISSUE` | 408 | Upload did not finish within 60 seconds |
 | `SERVICE_BUSY` | 503 | Upload/queue capacity is full, or queue wait exceeded 180 seconds; retry later |
 
-The trained checkpoint detects **people**, not faces. An image with no
-detected person returns `PERSON_NOT_DETECTED` (422); a person with an obscured
-or invisible face can still pass. This is not facial-visibility or passport
-compliance validation.
+The trained YOLO checkpoint detects **people**, not faces. A separate lightweight
+YuNet face detector now guides composition; when it finds no face, a recognizable
+head/neck silhouette can still guide framing. An image with no detected person
+returns `PERSON_NOT_DETECTED` (422). These are framing aids, not facial-visibility
+or passport-compliance validation.
 
 The Next.js proxy keeps these categories and adds a display title. Connection,
 timeout, unexpected response, and unknown server errors use
@@ -501,6 +504,56 @@ The output uses a white background and the listed dimensions. The current
 processor does not verify all country-specific passport rules or guarantee
 acceptance. Always check the issuing authority's latest rules, including
 restrictions on digitally edited photos.
+
+### Framing safeguards
+
+`services/photo_framing.py` checks both source coverage and foreground-mask
+coverage for every frame, including the original composition. Source pixels
+alone are not enough: a segmentation mask can end inside a wide source image,
+leaving white strips beside abruptly cut-off shoulders.
+
+Framing keeps the largest usable country-aspect crop, then resizes it
+proportionally to the final output. A bounded loop tries source widths from
+largest to smallest, trying valid vertical and horizontal positions before
+zooming further. It returns the first crop that keeps the estimated full head,
+a small horizontal hair margin, and substantial foreground coverage at both
+edges in the bottom 5% of the frame. Among equally large crops it prefers
+retaining existing headroom, then centering the face where possible. It does not
+add white padding to force a headroom percentage. Cumulative foreground counts
+avoid repeatedly scanning the same mask pixels; source dimensions bound both
+the width and position searches to at most 1,024 pixels per side.
+
+There is no target head-height percentage, 45-70% head-size restriction,
+80% body-retention rule, or upper-half-of-body constraint. Lower torso is cropped
+only as needed to find the largest clean frame. Users can adjust their desired
+composition in the crop editor rather than having the processor force a head size.
+
+`services/head_framing.py` first uses a detected face to locate the chin and
+segmented hair above it. If no face is detected, it looks for a head narrowing into
+a neck and then widening into shoulders. If neither cue is available, it keeps
+only an already clean original frame; it does not blindly zoom an unknown mask.
+That conservative fallback retains the previous 10% headroom composition.
+These are approximate head-preservation guides, not validation of each country's
+official head dimensions, expression, pose, or acceptance.
+
+The YuNet weights are shipped in `src/assets/face_detection_yunet_2023mar.onnx`
+(232,589 bytes), under the accompanying MIT license. The original is from
+[OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet);
+SHA-256 is `8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4`.
+Face inference is limited to a 640-pixel working side and reuses one CPU detector.
+No runtime model download or additional Python inference framework is required.
+The existing Docker `COPY src/` includes both weights and license.
+
+If no safe frame exists, the API returns HTTP 422 with `PHOTO_ISSUE`, not a JPEG.
+It does not stretch the subject, synthesize shoulders, or change `rembg`, YOLO,
+or JPEG settings. Run the framing and exported-pixel regression checks with:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p test_photo_composition.py -v
+```
+
+Restart the backend after source changes unless Uvicorn is running with `--reload`.
+The default backend command does not enable reload.
 
 User previews use local object URLs. Google Fonts supplies the page fonts, with local sans-serif
 fallbacks if unavailable.
