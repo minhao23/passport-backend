@@ -76,6 +76,35 @@ class PhotoCompositionTests(unittest.TestCase):
             ((400, 400), (0, 0)),
         )
 
+    def test_headroom_and_sloping_shoulders_do_not_force_extra_zoom(self):
+        for outline, expected_width in (("sloping", 400), ("flat cutoff", 390)):
+            alpha = np.zeros((400, 400), dtype=np.uint8)
+            alpha[20:200, 100:300] = 255
+            for row in range(200, 400):
+                right = 300 + (row - 200) // 2 if outline == "sloping" else 389
+                alpha[row, : right + 1] = 255
+            with self.subTest(outline=outline):
+                (width, height), (dx, dy) = plan_framing(
+                    (400, 400), alpha, (0, 399, 20, 399), (51, 51), (160, 60, 80, 100)
+                )
+                self.assertEqual(width, expected_width)
+                self.assertGreaterEqual(20 + dy, np.ceil(height * 0.05))
+                self.assertGreaterEqual(100 + dx, 1)
+
+        alpha = np.zeros((1024, 768), dtype=np.uint8)
+        alpha[137:650, 106:658] = 255
+        for row in range(650, 1024):
+            right = min(767, 600 + int((row - 650) * 0.9))
+            alpha[row, : right + 1] = 255
+        face = (215, 321, 326, 438)
+        (width, height), (_, dy) = plan_framing(
+            (768, 1024), alpha, (0, 767, 137, 1023), (51, 51), face
+        )
+        _, _, top, chin = find_head_bounds(alpha, face)
+        self.assertEqual(width, 768)
+        self.assertGreaterEqual(top + dy, np.ceil(height * 0.05))
+        self.assertGreaterEqual(height - chin - dy - 1, np.ceil((chin - top + 1) * 0.1))
+
     def test_extra_torso_is_kept_when_the_largest_crop_can_include_it(self):
         original, alpha, bounds = portrait()
         tall, tall_alpha, tall_bounds = long_portrait()

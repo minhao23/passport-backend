@@ -385,12 +385,12 @@ class ReducedMemoryTests(unittest.TestCase):
         self.assertEqual(MAX_ACTIVE_JOBS, 1)
         self.assertEqual(MAX_WAITING_JOBS, 2)
         self.assertEqual(MAX_WORKING_SIDE, 1024)
-        self.assertEqual(model_runtime.REMBG_MODEL_NAME, "u2net_human_seg")
+        self.assertEqual(model_runtime.REMBG_MODEL_NAME, "modnet-portrait")
         dockerfile = (
             Path(__file__).resolve().parents[1] / "Dockerfile.backend"
         ).read_text()
         self.assertIn(
-            "from rembg.sessions.u2net_human_seg import U2netHumanSegSession",
+            "from services.modnet_session import ModnetPortraitSession",
             dockerfile,
         )
         self.assertNotIn("birefnet_portrait", dockerfile)
@@ -419,7 +419,7 @@ class ReducedMemoryTests(unittest.TestCase):
             patch.object(model_runtime, "yolo_model", None, create=True),
         ):
             model_runtime.load_models()
-            create.assert_called_once_with("u2net_human_seg")
+            create.assert_called_once_with("modnet-portrait")
             yolo.assert_called_once_with(str(model_runtime.MODEL_PATH))
             self.assertIs(model_runtime.rembg_session, session)
             self.assertIs(model_runtime.yolo_model, detector)
@@ -435,6 +435,8 @@ class ReducedMemoryTests(unittest.TestCase):
         )
         session_type = Mock()
         session_type.name.return_value = "u2net_human_seg"
+        portrait_type = Mock()
+        portrait_type.name.return_value = "modnet-portrait"
         ort = SimpleNamespace(
             SessionOptions=Mock(return_value=options),
             ExecutionMode=SimpleNamespace(ORT_SEQUENTIAL="sequential"),
@@ -446,6 +448,9 @@ class ReducedMemoryTests(unittest.TestCase):
                 "rembg.sessions.u2net_human_seg": SimpleNamespace(
                     U2netHumanSegSession=session_type
                 ),
+                "services.modnet_session": SimpleNamespace(
+                    ModnetPortraitSession=portrait_type
+                ),
             },
         ):
             self.assertIs(
@@ -454,6 +459,15 @@ class ReducedMemoryTests(unittest.TestCase):
             )
             session_type.assert_called_once_with(
                 "u2net_human_seg",
+                options,
+                providers=["CPUExecutionProvider"],
+            )
+            self.assertIs(
+                rembg_runtime.create_rembg_session("modnet-portrait"),
+                portrait_type.return_value,
+            )
+            portrait_type.assert_called_once_with(
+                "modnet-portrait",
                 options,
                 providers=["CPUExecutionProvider"],
             )
@@ -564,16 +578,16 @@ class ReducedMemoryTests(unittest.TestCase):
         with self.assertRaises(SubjectSeparationError):
             segmentation.subject_bounds(np.zeros((32, 32), dtype=np.float32))
 
-    def test_smoothing_kernel_sizes_scale_and_stay_odd(self):
+    def test_selection_kernel_sizes_scale_and_stay_odd(self):
         for scale in (0.01, 0.5, 0.75, 1.0):
-            for size in (7, 31):
+            for size in (31, 41):
                 result = segmentation.scaled_kernel_size(size, scale)
                 self.assertGreaterEqual(result, 1)
                 self.assertEqual(result % 2, 1)
         self.assertEqual(segmentation.scaled_kernel_size(31, 1.0), 31)
-        self.assertEqual(segmentation.scaled_kernel_size(7, 1.0), 7)
+        self.assertEqual(segmentation.scaled_kernel_size(41, 1.0), 41)
         self.assertEqual(segmentation.scaled_kernel_size(31, 0.5), 17)
-        self.assertEqual(segmentation.scaled_kernel_size(7, 0.5), 5)
+        self.assertEqual(segmentation.scaled_kernel_size(41, 0.5), 21)
 
     def test_jpeg_is_downsampled_during_decode(self):
         for side, flag in (
@@ -690,65 +704,70 @@ class ReducedMemoryTests(unittest.TestCase):
                         result.getpixel((0, 0)), (255, 255, 255), atol=3
                     )
 
-    def test_in_place_merge_matches_previous_alpha_and_bounds(self):
+    def test_coarse_person_gate_preserves_soft_edges_and_fills_interior_holes(self):
         width, height = 128, 96
         rng = np.random.default_rng(42)
         raw_alpha = rng.integers(0, 256, (height, width), dtype=np.uint8)
         yolo_alpha = np.zeros((height, width), dtype=np.float32)
         yolo_alpha[24:72, 32:96] = rng.random((48, 64), dtype=np.float32)
         yolo_alpha[28:68, 36:92] = 1.0
-        rembg_alpha = raw_alpha.astype(np.float32) / 255.0
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))
+        yolo_alpha[40:56, 48:80] = 0
+        original_yolo = yolo_alpha.copy()
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (41, 41))
         binary = (yolo_alpha > 0.5).astype(np.uint8)
-        eroded = cv2.erode(binary, kernel, iterations=1)
+        contours, _ = cv2.findContours(
+            binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+        cv2.drawContours(binary, contours, -1, 1, cv2.FILLED)
         dilated = cv2.dilate(binary, kernel, iterations=2)
-        expected = np.zeros((height, width), dtype=np.float32)
-        expected[eroded == 1] = rembg_alpha[eroded == 1]
-        transition = (dilated == 1) & (eroded == 0)
-        weights = np.clip(yolo_alpha * 2.0, 0.0, 1.0)
-        expected[transition] = rembg_alpha[transition] * weights[transition]
-        expected[dilated == 0] = 0.0
-        for region in (eroded == 1, transition, dilated == 0):
-            self.assertTrue(region.any())
-        expected_u8 = (expected * 255).astype(np.uint8)
-        expected_mask = cv2.GaussianBlur(expected_u8, (7, 7), 0)
+        expected = raw_alpha.copy()
+        expected[dilated == 0] = 0
         expected_bounds = segmentation.subject_bounds(expected)
         with (
             Image.new("RGB", (width, height), (25, 65, 105)) as photo,
             patch.object(model_runtime, "rembg_session", object(), create=True),
             patch("rembg.remove", return_value=Image.fromarray(raw_alpha)),
-            patch.object(cv2, "GaussianBlur", wraps=cv2.GaussianBlur) as blur,
+            patch.object(cv2, "GaussianBlur") as blur,
         ):
             mask, bounds = segmentation.merge_subject_alpha(
                 photo, yolo_alpha, 1.0, lambda: None
             )
-            np.testing.assert_array_equal(blur.call_args.args[0], expected_u8)
-            np.testing.assert_array_equal(mask, expected_mask)
+            np.testing.assert_array_equal(mask, expected)
+            np.testing.assert_array_equal(mask[40:56, 48:80], raw_alpha[40:56, 48:80])
+            np.testing.assert_array_equal(yolo_alpha, original_yolo)
             self.assertEqual(bounds, expected_bounds)
+            blur.assert_not_called()
 
-    def test_large_input_uses_scaled_smoothing_kernels(self):
-        with (
-            patch.object(
-                model_runtime,
-                "yolo_model",
-                Mock(predict=Mock(return_value=[person_result((1024, 512))])),
-                create=True,
-            ),
-            patch.object(model_runtime, "rembg_session", object(), create=True),
-            patch(
-                "rembg.remove",
-                side_effect=lambda image, **_: Image.new("L", image.size, 255),
-            ),
-            patch.object(
-                cv2, "getStructuringElement", wraps=cv2.getStructuringElement
-            ) as kernel,
-            patch.object(cv2, "GaussianBlur", wraps=cv2.GaussianBlur) as blur,
+    def test_selection_gate_depends_on_working_size_not_upload_size(self):
+        for size, expected_kernel in (
+            ((512, 256), 21),
+            ((1024, 512), 41),
+            ((2048, 1024), 41),
         ):
-            image_processor.create_passport_photo(
-                self.photo((2048, 1024)), "United States"
+            working_size = (min(size[0], 1024), min(size[1], 512))
+            with (
+                self.subTest(size=size),
+                patch.object(
+                    model_runtime,
+                    "yolo_model",
+                    Mock(predict=Mock(return_value=[person_result(working_size)])),
+                    create=True,
+                ),
+                patch.object(model_runtime, "rembg_session", object(), create=True),
+                patch(
+                    "rembg.remove",
+                    side_effect=lambda image, **_: Image.new("L", image.size, 255),
+                ),
+                patch.object(
+                    cv2, "getStructuringElement", wraps=cv2.getStructuringElement
+                ) as kernel,
+                patch.object(cv2, "GaussianBlur", wraps=cv2.GaussianBlur) as blur,
+            ):
+                image_processor.create_passport_photo(self.photo(size), "United States")
+            kernel.assert_called_once_with(
+                cv2.MORPH_ELLIPSE, (expected_kernel, expected_kernel)
             )
-        kernel.assert_called_once_with(cv2.MORPH_ELLIPSE, (17, 17))
-        self.assertEqual(blur.call_args.args[1], (5, 5))
+            blur.assert_not_called()
 
     def test_cancellation_closes_temporary_images(self):
         cancelled = Event()

@@ -80,7 +80,13 @@ def find_head_bounds(
         if not facial_mask.size or np.mean(facial_mask >= 128) < 0.5:
             return None
         bottom = min(alpha.shape[0] - 1, ceil(y + height * 1.08))
-        return _support_bounds(alpha, 0, bottom)
+        # The silhouette below the face midpoint may already include shoulders.
+        # Measure hair width above it, but protect the full face vertically.
+        upper_head = _support_bounds(alpha, 0, min(bottom, y + ceil(height / 2)))
+        if upper_head is None:
+            return None
+        left, right, top, _ = upper_head
+        return min(left, x), max(right, x + width - 1), top, bottom
 
     opaque = alpha >= 128
     rows = np.flatnonzero(opaque.any(axis=1))

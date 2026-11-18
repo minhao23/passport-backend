@@ -19,7 +19,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 logger = logging.getLogger(__name__)
 MODEL_PATH = Path(__file__).resolve().parents[2] / "best.pt"
-REMBG_MODEL_NAME = "u2net_human_seg"
+REMBG_MODEL_NAME = "modnet-portrait"
 
 rembg_session: BaseSession | None = None
 yolo_model: YOLO | None = None

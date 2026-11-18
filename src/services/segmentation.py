@@ -1,4 +1,4 @@
-"""Detect the subject and combine its hard and soft segmentation masks."""
+"""Detect the subject and retain the portrait model's soft alpha details."""
 
 from collections.abc import Callable
 from contextlib import closing
@@ -76,27 +76,19 @@ def merge_subject_alpha(
     ) as rembg_mask:
         # Native inference finishes its current call before cancellation can stop it.
         check_cancelled()
-        final_alpha = np.array(rembg_mask, dtype=np.float32)
-    final_alpha /= 255.0
+        final_alpha = np.array(rembg_mask, dtype=np.uint8)
 
     check_cancelled()
-    kernel_size = scaled_kernel_size(31, edge_scale)
+    # A selection gate needs room for uncertain outlines, not edge smoothing.
+    kernel_size = scaled_kernel_size(41, edge_scale)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
     yolo_bin = (yolo_alpha > 0.5).astype(np.uint8)
-    eroded = cv2.erode(yolo_bin, kernel, iterations=1)
+    # YOLO selects the subject, but its coarse interior holes are not transparency.
+    contours, _ = cv2.findContours(yolo_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cv2.drawContours(yolo_bin, contours, -1, 1, cv2.FILLED)
     dilated = cv2.dilate(yolo_bin, kernel, iterations=2)
-
-    transition = (dilated == 1) & (eroded == 0)
-    yolo_alpha *= 2.0
-    np.clip(yolo_alpha, 0.0, 1.0, out=yolo_alpha)
-    np.multiply(final_alpha, yolo_alpha, out=final_alpha, where=transition)
     final_alpha[dilated == 0] = 0.0
-    del yolo_alpha, yolo_bin, eroded, dilated, transition
-
-    # Bounds use soft-mask support before 8-bit quantization and blur.
-    bounds = subject_bounds(final_alpha)
-    final_alpha *= 255.0
-    final_alpha_u8 = final_alpha.astype(np.uint8)
-    del final_alpha
-    blur_size = scaled_kernel_size(7, edge_scale)
-    return cv2.GaussianBlur(final_alpha_u8, (blur_size, blur_size), 0), bounds
+    del yolo_alpha, yolo_bin, dilated, contours
+    check_cancelled()
+    # Extra smoothing destroys individual strands and spreads background colour.
+    return final_alpha, subject_bounds(final_alpha)

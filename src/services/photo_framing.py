@@ -8,6 +8,8 @@ from errors import SubjectFramingError, SubjectTooSmallError
 from services.head_framing import FaceBox, find_head_bounds
 
 FALLBACK_HEADROOM = 0.10
+MIN_HEADROOM = 0.05
+MIN_BELOW_CHIN = 0.10
 EDGE_BAND = 0.05
 MIN_EDGE_COVERAGE = 0.90
 
@@ -61,21 +63,32 @@ def plan_framing(
     head_height = head_bottom - head_top + 1
     center_x = face[0] + face[2] / 2 if face else (head_left + head_right + 1) / 2
     side_margin = max(1, ceil((head_right - head_left + 1) * 0.02))
-    top_margin = min(1, head_top)
     min_width = max(
         head_right - head_left + 1 + side_margin * 2,
-        ceil((head_height + top_margin) * aspect),
+        ceil(head_height * aspect),
     )
     # Cumulative counts keep the position search from repeatedly scanning pixels.
+    foreground = alpha >= 128
     row_counts = np.empty((alpha.shape[0] + 1, alpha.shape[1]), dtype=np.uint32)
     row_counts[0] = 0
-    np.cumsum(alpha >= 128, axis=0, dtype=np.uint32, out=row_counts[1:])
+    np.cumsum(foreground, axis=0, dtype=np.uint32, out=row_counts[1:])
+    row_present = foreground.any(axis=1)
+    row_left = foreground.argmax(axis=1)
+    row_right = source_width - 1 - foreground[:, ::-1].argmax(axis=1)
+    max_step = max(2, ceil(source_width * 0.005))
+    left_breaks = np.concatenate(([0], np.cumsum(np.abs(np.diff(row_left)) > max_step)))
+    right_breaks = np.concatenate(
+        ([0], np.cumsum(np.abs(np.diff(row_right)) > max_step))
+    )
+    del foreground
 
     # Each smaller source crop means more zoom at export. Stop at the first fit
     # so head size never forces extra cropping, and the search stays bounded.
     for crop_width in range(source_width, min_width - 1, -1):
         crop_height = floor(crop_width / aspect)
-        min_top = max(0, head_bottom - crop_height + 1)
+        top_margin = min(head_top, ceil(crop_height * MIN_HEADROOM))
+        below_chin = ceil(head_height * MIN_BELOW_CHIN)
+        min_top = max(0, head_bottom + below_chin - crop_height + 1)
         max_top = min(head_top - top_margin, source_height - crop_height)
         if min_top > max_top:
             continue
@@ -91,14 +104,38 @@ def plan_framing(
         required = ceil(band_height * MIN_EDGE_COVERAGE)
         left_edges = slice(min_left, max_left + 1)
         right_edges = slice(min_left + crop_width - 1, max_left + crop_width)
-        clean = (
+        clean_left = (
             row_counts[bottoms, left_edges] - row_counts[band_starts, left_edges]
             >= required
         )
-        clean &= (
+        clean_right = (
             row_counts[bottoms, right_edges] - row_counts[band_starts, right_edges]
             >= required
         )
+        # A naturally sloping shoulder can leave a small white corner. A flat,
+        # inset mask cutoff cannot: do not confuse it with harmless background.
+        starts, ends = band_starts, bottoms - 1
+        slope = max(2, ceil(crop_width * 0.01))
+        gap = ceil(crop_width * 0.10)
+        candidates = np.arange(min_left, max_left + 1)
+        shoulders_present = row_present[starts] & row_present[ends]
+        natural_left = (
+            shoulders_present
+            & (row_left[starts] - row_left[ends] >= slope)
+            & (left_breaks[ends] == left_breaks[starts])
+        )
+        natural_right = (
+            shoulders_present
+            & (row_right[ends] - row_right[starts] >= slope)
+            & (right_breaks[ends] == right_breaks[starts])
+        )
+        clean_left |= natural_left[:, None] & (
+            row_left[ends, None] <= candidates[None, :] + gap
+        )
+        clean_right |= natural_right[:, None] & (
+            row_right[ends, None] >= candidates[None, :] + crop_width - 1 - gap
+        )
+        clean = clean_left & clean_right
         valid_tops = np.flatnonzero(clean.any(axis=1))
         if valid_tops.size:
             # Prefer retaining existing headroom; never pad to force a head ratio.

@@ -34,7 +34,8 @@ RUN python -m pip install torch torchvision --index-url https://download.pytorch
 USER app
 
 # Download without loading inference into memory; cache this layer across code changes.
-RUN python -c "from rembg.sessions.u2net_human_seg import U2netHumanSegSession; U2netHumanSegSession.download_models()"
+COPY src/services/modnet_session.py ./src/services/modnet_session.py
+RUN PYTHONPATH=src python -c "from services.modnet_session import ModnetPortraitSession; ModnetPortraitSession.download_models()"
 
 COPY best.pt ./best.pt
 COPY src/ ./src/

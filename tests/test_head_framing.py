@@ -7,6 +7,7 @@ import numpy as np
 
 from errors import ProcessingCancelledError
 from services import head_framing
+from services.photo_framing import _lower_edge_coverage, plan_framing
 
 
 class HeadFramingTests(unittest.TestCase):
@@ -95,6 +96,26 @@ class HeadFramingTests(unittest.TestCase):
         head = head_framing.find_head_bounds(alpha, face)
         self.assertEqual(head, (110, 249, 20, 187))
         self.assertEqual(head, head_framing.find_head_bounds(alpha[:400], face))
+
+    def test_shoulder_support_below_the_face_does_not_widen_the_head(self):
+        alpha = np.zeros((1024, 768), dtype=np.uint8)
+        alpha[154, 382:425] = 255
+        alpha[155:650, 125:646] = 255
+        alpha[650:795, 2:710] = 255
+        alpha[795:992, 2:] = 255
+        face = (215, 321, 326, 438)
+
+        self.assertEqual(
+            head_framing.find_head_bounds(alpha, face),
+            (125, 645, 154, 795),
+        )
+        (width, height), (dx, dy) = plan_framing(
+            (768, 1024), alpha, (2, 767, 154, 991), (51, 51), face
+        )
+        coverage = _lower_edge_coverage(alpha, -dy + height, height)
+        self.assertIsNotNone(coverage)
+        self.assertTrue(np.all(coverage[[-dx, -dx + width - 1]] >= 0.9))
+        self.assertGreaterEqual(-dy + height, 795)
 
     def test_plain_body_masks_are_not_mistaken_for_a_head(self):
         alpha = np.zeros((900, 400), dtype=np.uint8)
