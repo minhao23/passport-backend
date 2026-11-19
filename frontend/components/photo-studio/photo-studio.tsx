@@ -53,6 +53,7 @@ export default function PhotoStudio() {
           loading={studio.loading}
           cropped={studio.savedCrop !== null}
           onChoosePhoto={choosePhoto}
+          onRemovePhoto={studio.removePhoto}
           onGenerate={studio.generate}
           onCancel={studio.cancelProcessing}
           onCrop={() => setEditingPhoto(studio.originalFile)}

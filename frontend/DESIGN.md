@@ -208,13 +208,26 @@ The protected comparison is square, right-aligned, and at most 460px wide on des
 
 The guide uses `1.06fr 1fr 1.05fr` columns, 36px gaps, and 40px padding. At 1100px padding/gaps become 30px/24px. At 900px it has two columns with the tips spanning a three-column row. At 600px it stacks intro, illustration, and tips into one column with 30px gaps and `30px 25px` padding. At 360px horizontal padding becomes 22px.
 
-The conditional workspace uses `minmax(0, 1.6fr) minmax(0, 1fr)` and stacks at 900px. Photos lead with columns up to 240px wide and a shared preview row of `clamp(240px, 26vw, 320px)`. Padding is 28px, reducing to 24px at 1100px. The stacked tablet preview row is 280px; phone previews use `clamp(160px, 50vw, 240px)`, `24px 16px` photo padding, and 20px details padding. Preserve image aspect ratios and aligned captions.
+The conditional workspace uses `minmax(0, 1.6fr) minmax(0, 1fr)` and stacks at 900px. Photos lead with columns up to 240px wide and a shared preview row of `clamp(240px, 26vw, 320px)`. Padding is 28px, reducing to 24px at 1100px. The stacked tablet preview row is 280px. At 600px and below the workspace uses one preview at a time, sized to `min(360px, 80vw)`, with 20px photo and details padding. Preserve image aspect ratios.
 
-Country and dimensions share a compact summary, followed by Generate or Download JPEG and the preparation tips or result guidance. Keep Change photo content-width and attached to its source preview. Before generation, from 601px through 900px the summary sits beside the primary action and tips use two columns; on phones these return to a linear stack. Keep the tips fully visible rather than collapsing them for density.
+Country and dimensions share a compact summary, followed by Generate or Download JPEG and the preparation tips or result guidance. Keep Change photo content-width and attached to its source preview. Before generation, from 601px through 900px the summary sits beside the primary action and tips use two columns; on phones these return to a linear stack. Preparation tips remain fully visible above 600px; phones use the disclosure described below.
 
 Completed results use a single reading order at all widths: country and dimensions, Download JPEG, then the issuing-authority rules reminder. Do not repeat instructions to use the download button. The details panel stretches to the photo area's height on desktop, with re-crop guidance anchored to the bottom using flexible space. Pair that guidance with a non-interactive 14px outline info icon and muted body text, without another box. On stacked layouts, keep it last with at least 24px separation. Show the tip only after generation, without a live announcement.
 
 Navigation height changes from 100px to 80px at 900px. At 600px the free/no-account note moves from navigation to the form. Footer content wraps at 900px and its middle tagline hides.
+
+### Mobile Workflow
+
+Phone-specific controls are hidden above 600px. Keep the desktop and tablet layouts, copy, double-click cropping, and action focus behavior unchanged.
+
+- Before generation, show the uploaded photo without a blank result placeholder or direction arrow.
+- After generation, show the result by default. Two plain, underlined Original/Result buttons switch the single preview; pressed state is exposed to assistive technology.
+- A single tap on the uploaded preview opens the same rectangular crop editor. Change photo and Remove photo sit beneath that preview. Saving a crop still requires explicit generation.
+- Use a full-width Generate photo or Download JPEG action. While processing, show activity and a neutral Cancel control in the same action area; cancellation stays quiet.
+- Put the same country-specific preparation advice in a native Photo tips disclosure, initially closed. Keep the rules reminder and bottom info tip on completed results.
+- After selecting or saving a crop, bring the phone workspace into view. The hero's duplicate Generate action becomes a Review your photo link; the comparison's placement, size, assets, and interaction stay intact.
+
+All viewport-specific presentation rules stay within the existing 600px media query. Share processing state and handlers across screen sizes, rather than creating a separate mobile app.
 
 ## Elevation & Depth
 
