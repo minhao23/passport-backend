@@ -26,7 +26,7 @@ const headlineFont = localFont({
 export const metadata: Metadata = {
   title: "Passport Studio | Passport photos without the photo booth",
   description:
-    "Turn a photo into a passport-sized JPEG with a clean white background. Choose your country, upload, and download.",
+    "Turn a selfie into a passport-sized photo with a clean white background.",
 };
 
 export default function RootLayout({
