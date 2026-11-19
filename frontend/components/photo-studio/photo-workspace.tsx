@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Download,
   ImagePlus,
+  Info,
   LoaderCircle,
   ScanFace,
 } from "lucide-react";
@@ -152,7 +153,7 @@ export default function PhotoWorkspace({
             )}
           </figure>
         </div>
-        <div className="output-details">
+        <div className={`output-details${result ? " has-result" : ""}`}>
           <div className="output-summary">
             <h3 className="preview-country">{country}</h3>
             <dl>
@@ -192,10 +193,18 @@ export default function PhotoWorkspace({
             )}
           </div>
           {result && (
-            <p className="result-message" role="status">
-              If the download hasn't started, use Download JPEG. Check your
-              photo against your issuing authority's rules.
-            </p>
+            <>
+              <p className="result-check">
+                Check your photo against your issuing authority's rules.
+              </p>
+              <div className="result-tip">
+                <Info size={14} aria-hidden="true" />
+                <p>
+                  Not happy with the framing? Re-crop your original photo and
+                  generate again. Try a few crops to find the fit you prefer.
+                </p>
+              </div>
+            </>
           )}
           {!result && <PhotoPreparationTips country={country} />}
         </div>
