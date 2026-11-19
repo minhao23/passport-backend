@@ -27,8 +27,8 @@ runInNewContext(outputText, {
   require: createRequire(import.meta.url),
 });
 const PhotoPreparationTips = exports.default;
-const renderTips = (country) =>
-  renderToStaticMarkup(createElement(PhotoPreparationTips, { country }));
+const renderTips = (country, compact = false) =>
+  renderToStaticMarkup(createElement(PhotoPreparationTips, { country, compact }));
 
 test("photo tips cover framing, selfies, lighting and headwear exceptions", () => {
   const html = renderTips("United States");
@@ -62,6 +62,17 @@ test("tips are a named informational section, not an announcement or extra actio
   );
 });
 
+test("mobile tips start collapsed and retain the same country-specific advice", () => {
+  for (const country of ["United States", "United Kingdom"]) {
+    const regular = renderTips(country);
+    const compact = renderTips(country, true);
+    assert.match(compact, /<details class="mobile-photo-tips">/);
+    assert.match(compact, /<summary>Photo tips/);
+    assert.doesNotMatch(compact, /<details[^>]*\bopen\b|\bid=|role="(?:status|alert)"/);
+    assert.deepEqual(compact.match(/<li>[\s\S]*?<\/li>/g), regular.match(/<li>[\s\S]*?<\/li>/g));
+  }
+});
+
 test("completed results order download, rules and the informational re-crop footer", async () => {
   const workspace = await readFile(
     new URL("../frontend/components/photo-studio/photo-workspace.tsx", import.meta.url),
@@ -92,6 +103,10 @@ test("completed results order download, rules and the informational re-crop foot
     }));
     assert.equal(html.includes("Re-crop your original photo and generate again"), !!result);
     assert.equal(html.includes('class="result-tip"'), !!result);
+    assert.equal(html.includes('class="mobile-preview-switch"'), !!result);
+    assert.equal(html.includes('class="mobile-photo-tips"'), !result);
+    assert.equal(html.includes('class="mobile-processing-action"'), loading);
+    assert.match(html, /class="quiet-button mobile-remove"/);
     if (result) {
       assert.match(html, /Try a few crops to find the fit you prefer/);
       assert.match(html, /Download JPEG/);
@@ -104,6 +119,15 @@ test("completed results order download, rules and the informational re-crop foot
       assert.doesNotMatch(html, /If the download/);
       assert.ok(html.indexOf("Download JPEG") < html.indexOf('class="result-check"'));
       assert.ok(html.indexOf('class="result-check"') < html.indexOf('class="result-tip"'));
+      assert.match(html, /data-preview="result"/);
+      assert.match(html, /aria-label="Photo preview"/);
+      assert.match(html, /aria-pressed="false">Original<\/button>/);
+      assert.match(html, /aria-pressed="true">Result<\/button>/);
+    } else {
+      assert.match(html, /data-preview="original"/);
+      assert.match(html, /Tap photo to crop/);
+      assert.match(html, /Double-click to crop/);
+      assert.equal((html.match(/id="workspace-tips-title"/g) ?? []).length, 1);
     }
   }
 });

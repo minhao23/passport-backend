@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   Download,
@@ -20,6 +20,7 @@ type PhotoWorkspaceProps = {
   loading: boolean;
   cropped: boolean;
   onChoosePhoto: () => void;
+  onRemovePhoto: () => void;
   onGenerate: () => Promise<void>;
   onCancel: () => void;
   onCrop: () => void;
@@ -33,13 +34,18 @@ export default function PhotoWorkspace({
   loading,
   cropped,
   onChoosePhoto,
+  onRemovePhoto,
   onGenerate,
   onCancel,
   onCrop,
 }: PhotoWorkspaceProps) {
+  const workspace = useRef<HTMLElement>(null);
   const outputHeading = useRef<HTMLHeadingElement>(null);
   const primaryAction = useRef<HTMLButtonElement>(null);
+  const mobileCancel = useRef<HTMLButtonElement>(null);
   const focusAction = useRef(false);
+  const [viewedOriginal, setViewedOriginal] = useState("");
+  const showingOriginal = !result || viewedOriginal === result;
   const status = result
     ? "Ready to download"
     : loading
@@ -49,7 +55,11 @@ export default function PhotoWorkspace({
   useEffect(() => {
     // Follow the action swap only when it was initiated in this workspace.
     if (focusAction.current) {
-      primaryAction.current?.focus({ preventScroll: true });
+      const action =
+        loading && window.matchMedia("(max-width: 600px)").matches
+          ? mobileCancel.current
+          : primaryAction.current;
+      action?.focus({ preventScroll: true });
       focusAction.current = false;
     }
   }, [loading]);
@@ -58,8 +68,21 @@ export default function PhotoWorkspace({
     if (result) outputHeading.current?.focus();
   }, [result]);
 
+  useEffect(() => {
+    if (preview && window.matchMedia("(max-width: 600px)").matches) {
+      // Bring the phone workflow into view without moving the comparison.
+      outputHeading.current?.focus({ preventScroll: true });
+      workspace.current?.scrollIntoView({ block: "start" });
+    }
+  }, [preview]);
+
   return (
-    <section className="workspace wrap" aria-labelledby="workspace-title">
+    <section
+      ref={workspace}
+      className="workspace wrap"
+      data-state={result ? "complete" : loading ? "processing" : "selected"}
+      aria-labelledby="workspace-title"
+    >
       <div className="workspace-heading">
         <div>
           <h2 ref={outputHeading} tabIndex={-1} id="workspace-title">
@@ -69,7 +92,32 @@ export default function PhotoWorkspace({
         </div>
       </div>
       <div className="workspace-body">
-        <div className="photo-pair">
+        <div
+          className="photo-pair"
+          data-preview={showingOriginal ? "original" : "result"}
+        >
+          {result && (
+            <div
+              className="mobile-preview-switch"
+              role="group"
+              aria-label="Photo preview"
+            >
+              <button
+                type="button"
+                aria-pressed={showingOriginal}
+                onClick={() => setViewedOriginal(result)}
+              >
+                Original
+              </button>
+              <button
+                type="button"
+                aria-pressed={!showingOriginal}
+                onClick={() => setViewedOriginal("")}
+              >
+                Result
+              </button>
+            </div>
+          )}
           <figure className="source-photo">
             {preview && (
               <button
@@ -81,7 +129,11 @@ export default function PhotoWorkspace({
                 onDoubleClick={onCrop}
                 onClick={(event) => {
                   // Keyboard and assistive clicks do not emit a double-click.
-                  if (event.detail === 0) onCrop();
+                  if (
+                    event.detail === 0 ||
+                    window.matchMedia("(max-width: 600px)").matches
+                  )
+                    onCrop();
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -91,7 +143,8 @@ export default function PhotoWorkspace({
             <figcaption>{cropped ? "Your crop" : "Your original"}</figcaption>
             <div className="source-photo-actions" aria-hidden={loading}>
               <p id="photo-crop-hint" className="crop-hint">
-                Double-click to crop
+                <span className="desktop-crop-hint">Double-click to crop</span>
+                <span className="mobile-crop-hint">Tap photo to crop</span>
               </p>
               <button
                 className="secondary preview-change"
@@ -101,6 +154,14 @@ export default function PhotoWorkspace({
               >
                 <ImagePlus size={16} aria-hidden="true" />
                 <span>Change photo</span>
+              </button>
+              <button
+                className="quiet-button mobile-remove"
+                type="button"
+                disabled={loading}
+                onClick={onRemovePhoto}
+              >
+                Remove photo
               </button>
             </div>
           </figure>
@@ -186,10 +247,33 @@ export default function PhotoWorkspace({
                   }}
                 >
                   <ScanFace size={20} aria-hidden="true" />
-                  Generate passport photo
+                  <span className="desktop-generate-label">
+                    Generate passport photo
+                  </span>
+                  <span className="mobile-generate-label">Generate photo</span>
                   <ArrowRight size={18} aria-hidden="true" />
                 </button>
               )
+            )}
+            {loading && (
+              <div className="mobile-processing-action">
+                <span role="status">
+                  <LoaderCircle size={18} className="spin" aria-hidden="true" />
+                  Creating your photo
+                </span>
+                <button
+                  ref={mobileCancel}
+                  className="secondary"
+                  type="button"
+                  aria-label="Cancel generation"
+                  onClick={() => {
+                    focusAction.current = true;
+                    onCancel();
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
             )}
           </div>
           {result && (
@@ -206,7 +290,12 @@ export default function PhotoWorkspace({
               </div>
             </>
           )}
-          {!result && <PhotoPreparationTips country={country} />}
+          {!result && (
+            <>
+              <PhotoPreparationTips country={country} />
+              <PhotoPreparationTips country={country} compact />
+            </>
+          )}
         </div>
       </div>
     </section>

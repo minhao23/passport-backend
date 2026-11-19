@@ -51,7 +51,7 @@ export default function PhotoUploadForm({
   return (
     <div
       id="studio"
-      className="studio-form"
+      className={`studio-form${file ? " has-photo" : ""}`}
       tabIndex={-1}
       aria-label="Create your passport photo"
     >
@@ -115,6 +115,11 @@ export default function PhotoUploadForm({
           void onFileSelect(event.dataTransfer.files[0]);
         }}
       >
+        {file && (
+          <a className="primary mobile-review" href="#workspace-title">
+            Review your photo <ArrowRight size={18} aria-hidden="true" />
+          </a>
+        )}
         {loading ? (
           <div className="processing-state">
             <div className="processing-status" role="status">
