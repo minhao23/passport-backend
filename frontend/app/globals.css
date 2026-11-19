@@ -514,6 +514,12 @@ select {
   padding: 28px;
   align-self: start;
 }
+.output-details.has-result {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 0;
+}
 .output-summary {
   display: flex;
   flex-wrap: wrap;
@@ -542,13 +548,31 @@ select {
   min-height: 58px;
   margin-top: 20px;
 }
-.output-details .download {
-  margin-bottom: 16px;
+.has-result .workspace-action {
+  margin-top: 20px;
 }
-.result-message {
+.result-check,
+.result-tip {
   max-width: 65ch;
   font-size: 13px;
   line-height: 1.7;
+  color: var(--muted);
+}
+.result-check {
+  margin: 16px 0 0;
+}
+.result-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 24px;
+}
+.result-tip svg {
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.result-tip p {
   margin: 0;
 }
 .workspace-tips {
@@ -920,14 +944,8 @@ footer > a:last-child {
   .workspace-action {
     margin-top: 0;
   }
-  .output-details .download {
-    margin-bottom: 0;
-  }
-  .workspace-tips,
-  .result-message {
-    grid-column: 1 / -1;
-  }
   .workspace-tips {
+    grid-column: 1 / -1;
     margin-top: 0;
   }
   .workspace-tips ul {
