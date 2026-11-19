@@ -15,7 +15,6 @@ type PhotoUploadFormProps = {
   size: readonly [number, number];
   file: File | null;
   loading: boolean;
-  cancelled: boolean;
   inputRef: RefObject<HTMLInputElement | null>;
   onCountryChange: (country: string) => void;
   onFileSelect: (file?: File) => Promise<void>;
@@ -30,7 +29,6 @@ export default function PhotoUploadForm({
   size: [width, height],
   file,
   loading,
-  cancelled,
   inputRef,
   onCountryChange,
   onFileSelect,
@@ -41,10 +39,14 @@ export default function PhotoUploadForm({
 }: PhotoUploadFormProps) {
   const [dragging, setDragging] = useState(false);
   const primaryAction = useRef<HTMLButtonElement>(null);
+  const focusAction = useRef(false);
 
   useEffect(() => {
-    if (cancelled) primaryAction.current?.focus();
-  }, [cancelled]);
+    if (focusAction.current) {
+      primaryAction.current?.focus({ preventScroll: true });
+      focusAction.current = false;
+    }
+  }, [loading]);
 
   return (
     <div
@@ -83,8 +85,7 @@ export default function PhotoUploadForm({
         Choose the country issuing your passport, not your destination.
       </p>
       <p id="photo-help" className="sr-only">
-        Choose a JPG, PNG, or WebP up to 10 MB. Your photo is sent to the
-        processor only when you generate.
+        Choose a JPG, PNG, or WebP up to 10 MB.
       </p>
       <input
         ref={inputRef}
@@ -126,10 +127,14 @@ export default function PhotoUploadForm({
               </div>
             </div>
             <button
-              className="quiet-button"
+              ref={primaryAction}
+              className="secondary"
               type="button"
-              aria-label="Cancel processing"
-              onClick={onCancel}
+              aria-label="Cancel generation"
+              onClick={() => {
+                focusAction.current = true;
+                onCancel();
+              }}
             >
               Cancel
             </button>
@@ -139,7 +144,10 @@ export default function PhotoUploadForm({
             ref={primaryAction}
             className="primary generate"
             type="button"
-            onClick={() => void onGenerate()}
+            onClick={() => {
+              focusAction.current = true;
+              void onGenerate();
+            }}
           >
             <ScanFace size={20} /> Generate passport photo{" "}
             <ArrowRight size={18} />
@@ -182,9 +190,6 @@ export default function PhotoUploadForm({
               JPG, PNG, WebP up to 10 MB. <span>Or drop it here.</span>
             </p>
           ))}
-        <p className="process-note" role="status">
-          {cancelled ? "Cancelled. Change your photo or generate again." : ""}
-        </p>
       </div>
       <p className="mobile-free-note">Free. No account needed.</p>
     </div>

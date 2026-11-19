@@ -1,19 +1,25 @@
-"""Low-memory ONNX options for the existing human-segmentation model."""
+"""Low-memory CPU ONNX options for the supported portrait-removal models."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from rembg.sessions.u2net_human_seg import U2netHumanSegSession
+    from rembg.sessions.base import BaseSession
 
 
-def create_rembg_session(model_name: str) -> U2netHumanSegSession:
+def create_rembg_session(model_name: str) -> BaseSession:
     import onnxruntime as ort
     from rembg.sessions.u2net_human_seg import U2netHumanSegSession
 
-    if model_name != U2netHumanSegSession.name():
-        raise ValueError("This runtime profile supports only u2net_human_seg")
+    from services.modnet_session import ModnetPortraitSession
+
+    session_types = {
+        ModnetPortraitSession.name(): ModnetPortraitSession,
+        U2netHumanSegSession.name(): U2netHumanSegSession,
+    }
+    if model_name not in session_types:
+        raise ValueError(f"Unsupported background-removal model: {model_name}")
 
     options = ort.SessionOptions()
     # Return inference allocations instead of growing a retained CPU arena.
@@ -23,4 +29,6 @@ def create_rembg_session(model_name: str) -> U2netHumanSegSession:
     options.intra_op_num_threads = 1
     options.inter_op_num_threads = 1
 
-    return U2netHumanSegSession(model_name, options, providers=["CPUExecutionProvider"])
+    return session_types[model_name](
+        model_name, options, providers=["CPUExecutionProvider"]
+    )

@@ -28,6 +28,24 @@ in `frontend/lib/`; the server-side proxy remains in `app/api/process/route.ts`.
 Run `npm run format` to format frontend TypeScript, TSX, and CSS, or
 `npm run format:check` to check formatting without changing files.
 
+Double-click a selected photo to open the rectangular crop editor. Keyboard users
+can focus the photo and press Enter or Space. **Save crop** updates the preview and the photo used for generation;
+Cancel or Escape leaves it unchanged. Reset restores the full original on save.
+The original stays in local state for re-cropping without repeated compression.
+Cropping uses original-resolution pixels and lossless PNG export, with the same
+10 MB upload limit. Nothing is sent until **Generate passport photo** is clicked.
+The modal lives in `components/photo-studio/photo-crop-modal.tsx`; pixel geometry
+and export live in `lib/photo-crop.ts`. Run `node --test tests/frontend_crop.test.mjs`
+for the crop/export regression checks.
+
+Each successful generation automatically starts a JPEG download. The result
+panel keeps country and photo size, with a **Download JPEG** button for saving
+again or when the browser blocks automatic downloads. Browser settings determine
+whether a Save dialog appears. Re-rendering, cropping, cancelling, and failed
+requests do not start downloads. The download helper and shared filename live in
+`lib/photo-download.ts`; run `node --test tests/frontend_download.test.mjs` for
+its regression checks.
+
 ### Backend structure
 
 `src/main.py` only configures the app, middleware, and startup lifespan.
@@ -35,10 +53,12 @@ Run `npm run format` to format frontend TypeScript, TSX, and CSS, or
 responses. `src/request_limits.py` bounds uploads before multipart parsing.
 
 `src/services/image_processor.py` composes the image pipeline. Its stages live
-in `utils/image_loading.py`, `services/segmentation.py`, and
-`services/photo_composition.py`. `services/model_runtime.py` owns the reusable
-models and detector lock; native inference imports are deferred until startup
-or processing. `services/photo_requests.py` manages queue waits, disconnects,
+in `utils/image_loading.py`, `services/segmentation.py`, `services/head_framing.py`,
+`services/photo_framing.py`, and `services/photo_composition.py`.
+`services/model_runtime.py` owns the reusable segmentation models and detector
+lock; `services/head_framing.py` reuses the separate face detector under its own
+lock. Native inference imports are deferred until startup or processing.
+`services/photo_requests.py` manages queue waits, disconnects,
 and cancellation, while `services/processing_jobs.py` bounds admission and
 native work. Shared limits, country sizes, and image-header checks remain in
 `src/utils/`; public error classes remain in `src/errors/`.
@@ -85,8 +105,9 @@ It stores downloaded models in `.venv/model-cache` and Ultralytics settings
 in `.venv/ultralytics`, avoiding writes to global configuration directories.
 Set `U2NET_HOME` or `YOLO_CONFIG_DIR` to use an existing cache instead.
 
-The requirements include `rembg[cpu]` and Pillow. The first launch downloads
-the U2Net human-segmentation model and takes longer than subsequent launches. Keep
+The requirements include `rembg[cpu]` and Pillow. The first local launch downloads
+the MODNet portrait-matting model and takes longer than subsequent launches. Docker
+bundles its checksum-verified weights during the build, not during requests. Keep
 `best.pt` at the repository root; its path is resolved from the backend source,
 independent of the working directory. Wait for application startup to finish before generating.
 FastAPI's interactive API documentation is at http://127.0.0.1:8000/docs.
@@ -166,10 +187,11 @@ FastAPI returns JSON with `code` and `detail` for processing failures:
 | `PHOTO_ISSUE` | 408 | Upload did not finish within 60 seconds |
 | `SERVICE_BUSY` | 503 | Upload/queue capacity is full, or queue wait exceeded 180 seconds; retry later |
 
-The trained checkpoint detects **people**, not faces. An image with no
-detected person returns `PERSON_NOT_DETECTED` (422); a person with an obscured
-or invisible face can still pass. This is not facial-visibility or passport
-compliance validation.
+The trained YOLO checkpoint detects **people**, not faces. A separate lightweight
+YuNet face detector now guides composition; when it finds no face, a recognizable
+head/neck silhouette can still guide framing. An image with no detected person
+returns `PERSON_NOT_DETECTED` (422). These are framing aids, not facial-visibility
+or passport-compliance validation.
 
 The Next.js proxy keeps these categories and adds a display title. Connection,
 timeout, unexpected response, and unknown server errors use
@@ -261,27 +283,37 @@ upload regression deliberately takes 60 seconds to exercise the real deadline.
 
 ### Low-memory processing
 
-The default pipeline keeps `rembg`, using `u2net_human_seg` instead of
-`birefnet-portrait`. The human-segmentation model runs at 320 x 320 internally;
-the previous portrait model used 1024 x 1024. This is a different model, not
-just a lower-resolution version of the same weights. Fine hair and difficult
-backgrounds may be less accurately separated. Compare representative portraits
-before deploying; smooth edges alone do not guarantee equivalent quality.
+The default pipeline keeps `rembg`, with a custom `ModnetPortraitSession` using
+the existing CPU ONNX Runtime. MODNet predicts portrait alpha mattes rather than
+coarse human segmentation. Its approximately 26 MB FP32 weights replace the
+older `u2net_human_seg` default. Inputs preserve aspect ratio, use RGB / 127.5 - 1,
+and are bounded to a 512-pixel side with dimensions divisible by 32.
+
+The weights are the [Xenova ONNX export of MODNet](https://huggingface.co/Xenova/modnet),
+pinned to revision `fa2fa546052fba4c08921230a26cc69a333fca12` and SHA-256
+`07c308cf0fc7e6e8b2065a12ed7fc07e1de8febb7dc7839d7b7f15dd66584df9`.
+The model is Apache-2.0 licensed; `src/assets/LICENSE.modnet.txt` includes its
+license. Docker downloads it at build time. Local startup reuses the cache at
+`$U2NET_HOME/models/modnet-portrait/`. The older human model remains supported by
+the session factory for explicit comparisons, but is not loaded alongside MODNet.
 
 One native job runs at a time, with two bounded uploading/waiting slots.
 Images use at most a 1024-pixel working side. `rembg` returns only its soft mask,
-which is combined with YOLO's mask and composited onto white using the original
-RGB image. Mask multiplication is in place, subject bounds use row/column
-occupancy rather than per-pixel coordinate arrays, and generated Pillow images
-are explicitly closed. Erosion/dilation and blur kernels scale relative to the
-previous working resolution. JPEG output dimensions remain unchanged.
+which is spatially gated with an expanded YOLO outline. Interior holes in YOLO's
+coarse mask are filled before gating; its probabilities do not overwrite the
+matting model's soft edges. The gate margin scales with working-image dimensions,
+not the original upload size, so a larger upload does not cut deeper into clothing.
+No extra Gaussian blur is applied to the alpha matte.
+At export, rembg's foreground estimation removes old background colour from
+partially transparent edge pixels. Confident foreground pixels (alpha >= 250)
+retain their original RGB values. Subject bounds use row/column occupancy, and
+generated Pillow images are explicitly closed. JPEG dimensions remain unchanged.
 
 The runtime profile in `src/services/rembg_runtime.py` disables ONNX Runtime's
 retained CPU memory arena, keeping memory-pattern planning and graph optimization
 at their defaults. Execution is sequential with one intra/inter-op thread.
-No weights, precision, network input size, mask formula, or JPEG settings change
-in this additional runtime pass. Allocations may be slower without the retained
-arena, so measure latency as well as RAM.
+The model remains FP32. Allocations may be slower without the retained arena,
+so measure latency as well as RAM.
 
 The backend Dockerfile also defaults to `MALLOC_ARENA_MAX=2` and one
 OMP/OpenBLAS/MKL thread. The malloc setting takes effect when Linux starts the
@@ -483,6 +515,63 @@ The output uses a white background and the listed dimensions. The current
 processor does not verify all country-specific passport rules or guarantee
 acceptance. Always check the issuing authority's latest rules, including
 restrictions on digitally edited photos.
+
+### Framing safeguards
+
+`services/photo_framing.py` checks both source coverage and foreground-mask
+coverage for every frame, including the original composition. Source pixels
+alone are not enough: a segmentation mask can end inside a wide source image,
+leaving white strips beside abruptly cut-off shoulders.
+
+Framing keeps the largest usable country-aspect crop, then resizes it
+proportionally to the final output. A bounded loop tries source widths from
+largest to smallest, trying valid vertical and horizontal positions before
+zooming further. It returns the first crop that keeps the estimated full head,
+a small horizontal hair margin, and useful headroom (at least 5% when available
+in the source), plus space below the estimated chin of at least 10% of the
+estimated head height. Both lower edges must have substantial foreground coverage,
+or a small corner must come from a continuous outward-sloping shoulder.
+An abrupt or flat inset-mask cutoff is not accepted as a natural shoulder.
+Among equally large crops it prefers retaining existing headroom within those
+head and chin margins, then
+centering the face where possible. It does not
+add white padding to force a headroom percentage. Cumulative foreground counts
+avoid repeatedly scanning the same mask pixels; source dimensions bound both
+the width and position searches to at most 1,024 pixels per side.
+
+There is no target head-height percentage, 45-70% head-size restriction,
+80% body-retention rule, or upper-half-of-body constraint. Lower torso is cropped
+only as needed to find the largest clean frame. Users can adjust their desired
+composition in the crop editor rather than having the processor force a head size.
+
+`services/head_framing.py` first uses a detected face to locate the chin and
+segmented hair above the face midpoint, without measuring shoulders below it.
+If no face is detected, it looks for a head narrowing into
+a neck and then widening into shoulders. If neither cue is available, it keeps
+only an already clean original frame; it does not blindly zoom an unknown mask.
+That conservative fallback retains the previous 10% headroom composition.
+These are approximate head-preservation guides, not validation of each country's
+official head dimensions, expression, pose, or acceptance.
+
+The YuNet weights are shipped in `src/assets/face_detection_yunet_2023mar.onnx`
+(232,589 bytes), under the accompanying MIT license. The original is from
+[OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet);
+SHA-256 is `8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4`.
+Face inference is limited to a 640-pixel working side and reuses one CPU detector.
+No runtime model download or additional Python inference framework is required.
+The existing Docker `COPY src/` includes both weights and license.
+
+If no safe frame exists, the API returns HTTP 422 with `PHOTO_ISSUE`, not a JPEG.
+It does not stretch the subject, synthesize shoulders, or change JPEG settings.
+These crop safeguards do not certify official passport acceptance. Run the
+framing and exported-pixel regression checks with:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p test_photo_composition.py -v
+```
+
+Restart the backend after source changes unless Uvicorn is running with `--reload`.
+The default backend command does not enable reload.
 
 User previews use local object URLs. Google Fonts supplies the page fonts, with local sans-serif
 fallbacks if unavailable.

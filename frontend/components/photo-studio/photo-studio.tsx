@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import BackgroundComparison from "@/components/background-comparison";
 import { usePhotoStudio } from "@/hooks/use-photo-studio";
+import PhotoCropModal from "./photo-crop-modal";
 import PhotoFeedback from "./photo-feedback";
 import PhotoUploadForm from "./photo-upload-form";
 import PhotoWorkspace from "./photo-workspace";
@@ -10,6 +11,7 @@ import PhotoWorkspace from "./photo-workspace";
 export default function PhotoStudio() {
   const studio = usePhotoStudio();
   const input = useRef<HTMLInputElement>(null);
+  const [editingPhoto, setEditingPhoto] = useState<File | null>(null);
   const choosePhoto = () => input.current?.click();
 
   return (
@@ -26,7 +28,6 @@ export default function PhotoStudio() {
             size={studio.size}
             file={studio.file}
             loading={studio.loading}
-            cancelled={studio.cancelled}
             inputRef={input}
             onCountryChange={studio.changeCountry}
             onFileSelect={studio.selectFile}
@@ -50,11 +51,23 @@ export default function PhotoStudio() {
           preview={studio.preview}
           result={studio.result}
           loading={studio.loading}
-          cancelled={studio.cancelled}
+          cropped={studio.savedCrop !== null}
           onChoosePhoto={choosePhoto}
+          onGenerate={studio.generate}
           onCancel={studio.cancelProcessing}
+          onCrop={() => setEditingPhoto(studio.originalFile)}
         />
       )}
+      {editingPhoto &&
+        editingPhoto === studio.originalFile &&
+        !studio.loading && (
+          <PhotoCropModal
+            original={editingPhoto}
+            savedCrop={studio.savedCrop}
+            onSave={(file, crop) => studio.applyCrop(editingPhoto, file, crop)}
+            onClose={() => setEditingPhoto(null)}
+          />
+        )}
     </>
   );
 }

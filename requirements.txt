@@ -2,7 +2,8 @@ fastapi
 uvicorn
 python-multipart
 ultralytics
-opencv-python-headless
+opencv-python-headless>=4.8
 numpy
 Pillow
-rembg[cpu]
+rembg[cpu]>=2.0.86
+pooch>=1.8

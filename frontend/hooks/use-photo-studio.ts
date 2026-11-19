@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { PercentCrop } from "react-image-crop";
 import { ACCEPTED_TYPES, countries, MAX_FILE_SIZE } from "@/lib/countries";
+import { downloadPassportPhoto } from "@/lib/photo-download";
 import {
   normalizePhotoError,
   photoError,
@@ -12,13 +14,15 @@ import { PHOTO_REQUEST_TIMEOUT_MS } from "@/lib/processing-limits";
 export function usePhotoStudio() {
   const [country, setCountry] = useState("United States");
   const [file, setFile] = useState<File | null>(null);
+  const [originalFile, setOriginalFile] = useState<File | null>(null);
+  const [savedCrop, setSavedCrop] = useState<PercentCrop | null>(null);
   const [preview, setPreview] = useState("");
   const [result, setResult] = useState("");
   const [error, setError] = useState<PhotoError | null>(null);
   const [loading, setLoading] = useState(false);
-  const [cancelled, setCancelled] = useState(false);
   const request = useRef<AbortController | null>(null);
   const selection = useRef(0);
+  const originalSelection = useRef<File | null>(null);
 
   useEffect(() => {
     if (!file) {
@@ -67,9 +71,11 @@ export function usePhotoStudio() {
       const bitmap = await createImageBitmap(next);
       bitmap.close();
       if (version !== selection.current) return;
+      originalSelection.current = next;
+      setOriginalFile(next);
+      setSavedCrop(null);
       setFile(next);
       setResult("");
-      setCancelled(false);
     } catch {
       if (version === selection.current) {
         setError(
@@ -82,20 +88,31 @@ export function usePhotoStudio() {
     }
   }
 
+  function applyCrop(original: File, cropped: File, crop: PercentCrop) {
+    if (request.current || originalSelection.current !== original) return false;
+    ++selection.current;
+    setFile(cropped);
+    setSavedCrop(cropped === original ? null : crop);
+    setResult("");
+    setError(null);
+    return true;
+  }
+
   function changeCountry(next: string) {
     setCountry(next);
     setResult("");
     setError(null);
-    setCancelled(false);
   }
 
   function removePhoto() {
     if (request.current) return;
     ++selection.current;
+    originalSelection.current = null;
+    setOriginalFile(null);
+    setSavedCrop(null);
     setFile(null);
     setResult("");
     setError(null);
-    setCancelled(false);
   }
 
   function cancelProcessing() {
@@ -106,7 +123,6 @@ export function usePhotoStudio() {
     controller.abort();
     setLoading(false);
     setError(null);
-    setCancelled(true);
   }
 
   async function generate() {
@@ -115,7 +131,6 @@ export function usePhotoStudio() {
     setLoading(true);
     setError(null);
     setResult("");
-    setCancelled(false);
     const controller = new AbortController();
     request.current = controller;
     const timer = setTimeout(
@@ -144,7 +159,9 @@ export function usePhotoStudio() {
         setError(photoError("INTERNAL_SERVER_ERROR"));
         return;
       }
-      setResult(URL.createObjectURL(blob));
+      const resultUrl = URL.createObjectURL(blob);
+      setResult(resultUrl);
+      downloadPassportPhoto(resultUrl, country);
     } catch (err) {
       if (request.current !== controller) return;
       setError(
@@ -168,12 +185,14 @@ export function usePhotoStudio() {
     country,
     size: countries[country],
     file,
+    originalFile,
+    savedCrop,
     preview,
     result,
     error,
     loading,
-    cancelled,
     selectFile,
+    applyCrop,
     changeCountry,
     removePhoto,
     cancelProcessing,

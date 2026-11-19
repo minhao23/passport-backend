@@ -62,7 +62,7 @@ class ModelInitializationTests(unittest.TestCase):
         ):
             self.runtime.load_models()
             self.runtime.load_models()
-        create_session.assert_called_once_with("u2net_human_seg")
+        create_session.assert_called_once_with("modnet-portrait")
         yolo.assert_called_once_with(str(self.runtime.MODEL_PATH))
         self.assertIs(self.runtime.get_detector(), detector)
         self.assertIs(self.runtime.get_background_session(), session)

@@ -50,8 +50,16 @@ def probe(args):
     from services import model_runtime
 
     if args.profile == "reference":
-        model_runtime.create_rembg_session = lambda name: new_session(
-            name, providers=["CPUExecutionProvider"]
+        import onnxruntime as ort
+
+        from services.modnet_session import ModnetPortraitSession
+
+        model_runtime.create_rembg_session = lambda name: (
+            ModnetPortraitSession(
+                name, ort.SessionOptions(), providers=["CPUExecutionProvider"]
+            )
+            if name == ModnetPortraitSession.name()
+            else new_session(name, providers=["CPUExecutionProvider"])
         )
         processor.person_alpha = lambda image, check: reference_person_alpha(
             model_runtime, image, check

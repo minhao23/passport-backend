@@ -17,7 +17,7 @@ from utils.limits import ACCEPTED_IMAGE_FORMATS, MAX_FILE_BYTES, MAX_WORKING_SID
 
 
 def decode_photo(image_bytes: bytes) -> tuple[np.ndarray, float]:
-    """Return BGR pixels and the scale used by the existing smoothing kernels."""
+    """Return bounded BGR pixels and a working-image selection-gate scale."""
     if not image_bytes:
         raise EmptyPhotoError()
     if len(image_bytes) > MAX_FILE_BYTES:
@@ -62,7 +62,6 @@ def decode_photo(image_bytes: bytes) -> tuple[np.ndarray, float]:
 
     decoded_height, decoded_width = image.shape[:2]
     check_dimensions(decoded_width, decoded_height)
-    edge_scale = min(1.0, MAX_WORKING_SIDE / min(max(width, height), 2048))
     if max(decoded_height, decoded_width) > MAX_WORKING_SIDE:
         scale = MAX_WORKING_SIDE / max(decoded_height, decoded_width)
         image = cv2.resize(
@@ -73,4 +72,5 @@ def decode_photo(image_bytes: bytes) -> tuple[np.ndarray, float]:
             ),
             interpolation=cv2.INTER_AREA,
         )
+    edge_scale = max(image.shape[:2]) / MAX_WORKING_SIDE
     return image, edge_scale

@@ -7,7 +7,20 @@ from contextlib import closing
 import numpy as np
 from PIL import Image
 
-from errors import SubjectTooSmallError
+from services.head_framing import FaceBox
+from services.photo_framing import plan_framing
+
+
+def _edge_foreground(photo: Image.Image, alpha: np.ndarray) -> Image.Image:
+    from rembg.bg import decontaminate_cutout
+
+    with closing(Image.fromarray(alpha)) as mask:
+        with closing(decontaminate_cutout(photo, mask)) as cutout:
+            pixels = np.array(cutout)[:, :, :3].copy()
+    opaque = alpha >= 250
+    # Recover colour only on mixed edges; preserve confident foreground pixels.
+    pixels[opaque] = np.asarray(photo)[opaque]
+    return Image.fromarray(pixels)
 
 
 def compose_photo(
@@ -16,22 +29,20 @@ def compose_photo(
     bounds: tuple[int, int, int, int],
     size_mm: tuple[int, int],
     check_cancelled: Callable[[], None],
+    face: FaceBox | None = None,
 ) -> bytes:
     check_cancelled()
-    px1, px2, py1, py2 = bounds
     width_mm, height_mm = size_mm
-    center_x = px1 + ((px2 - px1) / 2.0)
-
-    # Preserve the 10% top margin and bottom-anchored composition.
-    canvas_h = (py2 - py1) / 0.90
-    canvas_w, canvas_h = int(canvas_h * (width_mm / height_mm)), int(canvas_h)
-    if canvas_w < 1 or canvas_h < 1:
-        raise SubjectTooSmallError()
-
-    position = (int(canvas_w / 2 - center_x), int(canvas_h - py2))
-    with closing(Image.new("RGB", (canvas_w, canvas_h), (255, 255, 255))) as canvas:
+    canvas_size, position = plan_framing(photo.size, alpha, bounds, size_mm, face)
+    check_cancelled()
+    with closing(Image.new("RGB", canvas_size, (255, 255, 255))) as canvas:
         with closing(Image.fromarray(alpha)) as mask:
-            canvas.paste(photo, position, mask)
+            if np.any((alpha > 0) & (alpha < 250)):
+                with closing(_edge_foreground(photo, alpha)) as foreground:
+                    check_cancelled()
+                    canvas.paste(foreground, position, mask)
+            else:
+                canvas.paste(photo, position, mask)
         check_cancelled()
         output_size = (int(width_mm * 11.81), int(height_mm * 11.81))
         final_image = canvas.resize(output_size, Image.Resampling.LANCZOS)
