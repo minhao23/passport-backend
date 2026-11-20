@@ -196,7 +196,6 @@ export default function PhotoUploadForm({
             </p>
           ))}
       </div>
-      <p className="mobile-free-note">Free. No account needed.</p>
     </div>
   );
 }

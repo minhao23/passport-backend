@@ -10,7 +10,6 @@ export default function SiteHeader() {
         </a>
         <nav aria-label="Main navigation">
           <a href="#photo-tips">Photo guide</a>
-          <span className="free-note">Free. No account needed.</span>
         </nav>
       </header>
     </>

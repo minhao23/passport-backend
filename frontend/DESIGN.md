@@ -214,7 +214,7 @@ Country and dimensions share a compact summary, followed by Generate or Download
 
 Completed results use a single reading order at all widths: country and dimensions, Download JPEG, then the issuing-authority rules reminder. Do not repeat instructions to use the download button. The details panel stretches to the photo area's height on desktop, with re-crop guidance anchored to the bottom using flexible space. Pair that guidance with a non-interactive 14px outline info icon and muted body text, without another box. On stacked layouts, keep it last with at least 24px separation. Show the tip only after generation, without a live announcement.
 
-Navigation height changes from 100px to 80px at 900px. At 600px the free/no-account note moves from navigation to the form. Footer content wraps at 900px and its middle tagline hides.
+Navigation height changes from 100px to 80px at 900px. Footer content wraps at 900px and its middle tagline hides.
 
 ### Mobile Workflow
 
@@ -265,7 +265,7 @@ The actual file input is visually hidden and reached through the upload button. 
 
 ### Navigation
 
-Text wordmark on the left, a "Photo guide" anchor and free/no-account note on the right. Links have 44px minimum height; desktop navigation text is 15px with 36px gaps, reducing to 12px gaps at 900px and 13px link text at 600px. Hover underlines; keyboard focus remains explicit. This is in-page navigation with no invented selected tab, chip system, or mobile hamburger.
+Text wordmark on the left and a "Photo guide" anchor on the right. Links have 44px minimum height; desktop navigation text is 15px with 36px gaps, reducing to 12px gaps at 900px and 13px link text at 600px. Hover underlines; keyboard focus remains explicit. This is in-page navigation with no invented selected tab, chip system, or mobile hamburger.
 
 ### Cards / Containers
 
