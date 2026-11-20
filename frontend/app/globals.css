@@ -114,9 +114,6 @@ select:focus-visible,
   gap: 8px;
   min-height: 44px;
 }
-.free-note {
-  color: var(--muted);
-}
 .nav a:hover,
 footer a:hover {
   text-decoration: underline;
@@ -186,10 +183,6 @@ footer a:hover {
   text-decoration: underline;
   text-underline-offset: 5px;
 }
-.mobile-free-note {
-  display: none;
-}
-
 h2,
 h3 {
   font-family: var(--display);
@@ -970,9 +963,6 @@ footer > a:last-child {
   .nav nav a {
     font-size: 13px;
   }
-  .free-note {
-    display: none;
-  }
   .hero h1 {
     font-size: clamp(32px, 8.4vw, 44px);
     letter-spacing: -0.03em;
@@ -995,12 +985,6 @@ footer > a:last-child {
   }
   .upload-help {
     font-size: 12px;
-  }
-  .mobile-free-note {
-    display: block;
-    margin: 6px 0 0;
-    font-size: 12px;
-    color: var(--muted);
   }
   .workspace-heading {
     flex-direction: column;
