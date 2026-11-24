@@ -66,6 +66,14 @@ export default function PhotoFramingHelp() {
             </p>
           </article>
           <article>
+            <h5>Photo looks off-center</h5>
+            <p>
+              Use the crop tool on your original photo to center your face, with
+              similar space on both sides. Keep your whole head and shoulders
+              visible.
+            </p>
+          </article>
+          <article>
             <h5>Not facing straight ahead</h5>
             <p>
               Look directly at the camera with your head upright. If your head

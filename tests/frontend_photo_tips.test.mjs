@@ -111,6 +111,7 @@ test("completed results order download, rules and collapsed framing help", async
       }),
     );
     assert.equal(html.includes("Not happy with the framing?"), !!result);
+    assert.equal(html.includes("Photo looks off-center"), !!result);
     assert.equal(html.includes('aria-label="Framing tips"'), !!result);
     assert.equal(html.includes('class="mobile-preview-switch"'), !!result);
     assert.equal(html.includes('class="mobile-photo-tips"'), !result);
@@ -122,6 +123,11 @@ test("completed results order download, rules and collapsed framing help", async
       assert.match(html, /aria-label="Framing tips" hidden=""/);
       assert.match(html, /aria-expanded="false"/);
       assert.match(html, /Shoulders cropped too tightly/);
+      assert.match(
+        html,
+        /Use the crop tool on your original photo to center your face/,
+      );
+      assert.match(html, /with similar space on both sides/);
       assert.match(html, /Not facing straight ahead/);
       assert.doesNotMatch(html, /href="#photo-tips"|role="dialog"|aria-live/);
       assert.doesNotMatch(html, /If the download/);
