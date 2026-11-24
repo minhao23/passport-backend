@@ -71,4 +71,27 @@ rule; UK online applicants instead see advice to retain an uncropped original.
 Keep tips during generation to avoid layout shifts, and remove them when the
 download result appears.
 
+## Completed Result Framing Help
+
+THESIS: Offer the last approved framing guide only after generation and only
+when requested, without interrupting the download or photo comparison.
+
+OWN-WORLD: Reuse the existing sage controls and the approved lilac head-and-
+shoulders diagram. Keep the instruction area inline, unboxed, and quiet.
+
+STORY: Click or tap "Not happy with the framing?" to reveal crop advice and
+the approved common issues about cut-off shoulders and a turned or tilted head.
+Click again to close it. A new generated result starts closed.
+
+FIRST VIEWPORT: Country and dimensions, Download JPEG, authority reminder,
+then the collapsed footer at the panel bottom. Expanded content appears above
+that same footer; photos and primary actions stay in place.
+
+FORM: Approved narrow extension, code-led HTML/React implementation. No new
+concept round. Keep the mobile footer compact and keyboard-operable. Omit the
+obsolete Photo guide link because its destination was removed.
+
+Future mockups are runnable HTML, not raster boards. Remove spent mockup
+artifacts after their approved design has been implemented and verified.
+
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance

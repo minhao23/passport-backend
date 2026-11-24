@@ -76,6 +76,74 @@ class PhotoCompositionTests(unittest.TestCase):
             ((400, 400), (0, 0)),
         )
 
+    def test_extra_headroom_prefers_cleaner_same_width_positions(self):
+        original_alpha = np.zeros((560, 400), dtype=np.uint8)
+        original_alpha[140:300, 100:300] = 255
+        original_alpha[300:320, 175:225] = 255
+        for row in range(320, 560):
+            margin = max(0, 100 - (row - 320))
+            original_alpha[row, margin : 400 - margin] = 255
+        before = original_alpha.copy()
+        for removed_top, expected_top in ((0, 38), (100, 0)):
+            alpha = original_alpha[removed_top:]
+            face = (150, 175 - removed_top, 100, 110)
+            bounds = (0, 399, 140 - removed_top, 559 - removed_top)
+            with (
+                self.subTest(removed_top=removed_top),
+                Image.new("RGB", (400, alpha.shape[0]), (35, 55, 75)) as photo,
+            ):
+                size, position = plan_framing(photo.size, alpha, bounds, (51, 51), face)
+                self.assertEqual(size, (400, 400))
+                self.assertEqual(position, (0, -expected_top))
+                coverage = _lower_edge_coverage(alpha, expected_top + 400, 400)
+                self.assertTrue(np.all(coverage[[0, 399]] >= 0.90))
+                output = compose_photo(
+                    photo, alpha, bounds, (51, 51), lambda: None, face
+                )
+                with Image.open(io.BytesIO(output)) as result:
+                    self.assertEqual(result.size, (602, 602))
+                    self.assertLess(int(np.array(result)[-1, [0, -1]].max()), 110)
+        np.testing.assert_array_equal(original_alpha, before)
+
+    def test_slope_fallback_minimizes_gaps_without_additional_zoom(self):
+        alpha = np.zeros((450, 400), dtype=np.uint8)
+        alpha[80:240, 100:300] = 255
+        alpha[240:280, 175:225] = 255
+        for row in range(260, 450):
+            margin = min(175, max(0, 200 - (row - 260)))
+            alpha[row, margin : 400 - margin] = 255
+        size, position = plan_framing(
+            (400, 450), alpha, (11, 388, 80, 449), (51, 51), (150, 110, 100, 110)
+        )
+        self.assertEqual(size, (400, 400))
+        self.assertEqual(position, (0, -50))
+        self.assertFalse(np.any(_lower_edge_coverage(alpha, 450, 400)[[0, 399]]))
+        self.assertEqual(np.flatnonzero(alpha[449] >= 128)[[0, -1]].tolist(), [11, 388])
+
+    def test_strict_positions_minimize_bottom_gaps_before_retaining_headroom(self):
+        for support in ("narrow", "empty"):
+            alpha = np.zeros((500, 400), dtype=np.uint8)
+            alpha[80:240, 100:300] = 255
+            alpha[240:250, 175:225] = 255
+            alpha[250:] = 255
+            alpha[399] = 0
+            if support == "narrow":
+                alpha[399, 150:250] = 255
+            with self.subTest(support=support):
+                self.assertTrue(
+                    np.all(_lower_edge_coverage(alpha, 400, 400)[[0, 399]] >= 0.90)
+                )
+                self.assertEqual(
+                    plan_framing(
+                        (400, 500),
+                        alpha,
+                        (0, 399, 80, 499),
+                        (51, 51),
+                        (150, 110, 100, 110),
+                    ),
+                    ((400, 400), (0, -1)),
+                )
+
     def test_headroom_and_sloping_shoulders_do_not_force_extra_zoom(self):
         for outline, expected_width in (("sloping", 400), ("flat cutoff", 390)):
             alpha = np.zeros((400, 400), dtype=np.uint8)

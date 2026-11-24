@@ -112,6 +112,7 @@ def plan_framing(
             row_counts[bottoms, right_edges] - row_counts[band_starts, right_edges]
             >= required
         )
+        strict = clean_left & clean_right
         # A naturally sloping shoulder can leave a small white corner. A flat,
         # inset mask cutoff cannot: do not confuse it with harmless background.
         starts, ends = band_starts, bottoms - 1
@@ -135,14 +136,29 @@ def plan_framing(
         clean_right |= natural_right[:, None] & (
             row_right[ends, None] >= candidates[None, :] + crop_width - 1 - gap
         )
-        clean = clean_left & clean_right
-        valid_tops = np.flatnonzero(clean.any(axis=1))
-        if valid_tops.size:
-            # Prefer retaining existing headroom; never pad to force a head ratio.
-            index = int(valid_tops[0])
-            top = int(tops[index])
-            candidates = np.flatnonzero(clean[index]) + min_left
-            nearest = np.argmin(np.abs(candidates + crop_width / 2 - center_x))
-            left = int(candidates[nearest])
+        # Use sloping corners only when no strictly supported position fits.
+        clean = strict if strict.any() else clean_left & clean_right
+        rows, columns = np.nonzero(clean)
+        if rows.size:
+            candidates = columns + min_left
+            last_rows = ends[rows]
+            left_gaps = np.maximum(row_left[last_rows] - candidates, 0)
+            right_gaps = np.maximum(
+                candidates + crop_width - 1 - row_right[last_rows], 0
+            )
+            # An empty row's argmax boundaries otherwise look like filled edges.
+            left_gaps[~row_present[last_rows]] = crop_width
+            right_gaps[~row_present[last_rows]] = crop_width
+            order = np.lexsort(
+                (
+                    np.abs(candidates + crop_width / 2 - center_x),
+                    tops[rows],
+                    left_gaps + right_gaps,
+                    np.maximum(left_gaps, right_gaps),
+                )
+            )
+            chosen = int(order[0])
+            top = int(tops[rows[chosen]])
+            left = int(candidates[chosen])
             return (crop_width, crop_height), (-left, -top)
     raise SubjectFramingError()

@@ -518,29 +518,12 @@ select {
 .has-result .workspace-action {
   margin-top: 20px;
 }
-.result-check,
-.result-tip {
+.result-check {
   max-width: 65ch;
   font-size: 13px;
   line-height: 1.7;
   color: var(--muted);
-}
-.result-check {
   margin: 16px 0 0;
-}
-.result-tip {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-top: auto;
-  padding-top: 24px;
-}
-.result-tip svg {
-  flex-shrink: 0;
-  margin-top: 4px;
-}
-.result-tip p {
-  margin: 0;
 }
 .workspace-tips {
   margin-top: 24px;
@@ -944,8 +927,7 @@ footer > a:last-child {
   .mobile-photo-tips li + li {
     margin-top: 8px;
   }
-  .result-check,
-  .result-tip {
+  .result-check {
     font-size: 14px;
     line-height: 1.6;
   }
