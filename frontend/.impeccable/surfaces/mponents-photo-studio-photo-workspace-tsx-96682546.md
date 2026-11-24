@@ -80,7 +80,9 @@ OWN-WORLD: Reuse the existing sage controls and the approved lilac head-and-
 shoulders diagram. Keep the instruction area inline, unboxed, and quiet.
 
 STORY: Click or tap "Not happy with the framing?" to reveal crop advice and
-the approved common issues about cut-off shoulders and a turned or tilted head.
+the common issues about cut-off shoulders, an off-center face, and a turned
+or tilted head. Centering advice directs users to crop their original with
+similar space on both sides while keeping their head and shoulders visible.
 Click again to close it. A new generated result starts closed.
 
 FIRST VIEWPORT: Country and dimensions, Download JPEG, authority reminder,
