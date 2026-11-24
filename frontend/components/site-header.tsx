@@ -8,9 +8,6 @@ export default function SiteHeader() {
         <a className="brand" href="#" aria-label="Passport Studio home">
           Passport Studio
         </a>
-        <nav aria-label="Main navigation">
-          <a href="#photo-tips">Photo guide</a>
-        </nav>
       </header>
     </>
   );

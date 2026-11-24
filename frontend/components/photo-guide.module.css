@@ -1,0 +1,73 @@
+.examples {
+  max-width: 875px;
+  margin: 8px auto 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.examples > summary {
+  margin-left: 27px;
+}
+
+.examples > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.examples > summary::-webkit-details-marker {
+  display: none;
+}
+
+.examples > summary svg {
+  flex-shrink: 0;
+}
+
+.examples > summary:hover span {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.examples > summary:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.examples[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.content {
+  max-width: 653px;
+  margin-inline: auto;
+  padding-top: 8px;
+}
+
+.content p {
+  max-width: 65ch;
+  margin: 0 0 16px;
+}
+
+.image {
+  display: block;
+  width: 653px;
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+}
+
+@media (max-width: 600px) {
+  .examples {
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .examples > summary {
+    margin-left: 0;
+  }
+}

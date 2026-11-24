@@ -1,93 +1,13 @@
-import {
-  ArrowRight,
-  Check,
-  Info,
-  ScanFace,
-  Sun,
-  UserRound,
-} from "lucide-react";
+import Image from "next/image";
+import { ChevronDown, Info } from "lucide-react";
+import sampleRules from "@/assets/sample_rules.jpg";
+import styles from "./photo-guide.module.css";
 
-const photoTips = [
-  {
-    icon: Sun,
-    title: "Find the light.",
-    detail: "Face a window. Skip harsh shadows and camera filters.",
-  },
-  {
-    icon: ScanFace,
-    title: "Keep it natural.",
-    detail: "Head straight, eyes open, neutral expression. No sunglasses.",
-  },
-  {
-    icon: UserRound,
-    title: "Give yourself room.",
-    detail:
-      "Include your whole head and shoulders. We'll handle the background.",
-  },
-];
-
-function FramingGuide() {
+export default function SubmissionNote() {
   return (
-    <div
-      className="framing-guide"
-      role="img"
-      aria-label="Framing guide: face the camera with your whole head and shoulders visible and space above your head."
-    >
-      <span className="framing-label">Leave a little headroom</span>
-      <div className="framing-window">
-        <i className="corner tl" />
-        <i className="corner tr" />
-        <i className="corner bl" />
-        <i className="corner br" />
-        <div className="headroom-line" />
-        <UserRound className="framing-person" strokeWidth={0.8} />
-        <div className="eye-line" />
-        <span className="eye-label">Eyes level</span>
-      </div>
-      <span className="framing-caption">
-        <Check size={14} /> Head &amp; shoulders in frame
-      </span>
-    </div>
-  );
-}
-
-export default function PhotoGuide() {
-  return (
-    <section
-      id="photo-tips"
-      className="guide wrap"
-      aria-labelledby="guide-title"
-    >
-      <div className="guide-panel">
-        <div className="guide-intro">
-          <h2 id="guide-title">
-            A little prep.
-            <br />A better shot.
-          </h2>
-          <p>
-            No special setup. Just you,
-            <br />
-            your camera, and a window.
-          </p>
-          <a className="text-link" href="#studio">
-            I have a photo <ArrowRight size={17} />
-          </a>
-        </div>
-        <FramingGuide />
-        <div className="guide-notes">
-          {photoTips.map(({ icon: Icon, title, detail }) => (
-            <article key={title}>
-              <Icon size={21} />
-              <div>
-                <h3>{title}</h3>
-                <p>{detail}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      </div>
+    <aside className="submission-guidance wrap" aria-label="Before you submit">
       <div className="submission-note">
-        <Info size={17} />
+        <Info size={17} aria-hidden="true" />
         <p>
           <strong>Before you submit.</strong> We resize and remove the
           background, but acceptance isn&apos;t guaranteed. Check your issuing
@@ -95,6 +15,21 @@ export default function PhotoGuide() {
           coverings, and photo editing.
         </p>
       </div>
-    </section>
+      <details className={styles.examples}>
+        <summary>
+          <span>View photo examples</span>
+          <ChevronDown size={16} aria-hidden="true" />
+        </summary>
+        <div className={styles.content}>
+          <p>taken from: Singapore ICA.</p>
+          <Image
+            src={sampleRules}
+            alt="Singapore ICA photo guidelines comparing unsuitable and suitable portraits."
+            className={styles.image}
+            unoptimized
+          />
+        </div>
+      </details>
+    </aside>
   );
 }

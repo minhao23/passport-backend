@@ -5,11 +5,11 @@ import {
   ArrowRight,
   Download,
   ImagePlus,
-  Info,
   LoaderCircle,
   ScanFace,
 } from "lucide-react";
 import { passportPhotoFilename } from "@/lib/photo-download";
+import PhotoFramingHelp from "./photo-framing-help";
 import PhotoPreparationTips from "./photo-preparation-tips";
 
 type PhotoWorkspaceProps = {
@@ -281,13 +281,7 @@ export default function PhotoWorkspace({
               <p className="result-check">
                 Check your photo against your issuing authority's rules.
               </p>
-              <div className="result-tip">
-                <Info size={14} aria-hidden="true" />
-                <p>
-                  Not happy with the framing? Re-crop your original photo and
-                  generate again. Try a few crops to find the fit you prefer.
-                </p>
-              </div>
+              <PhotoFramingHelp key={result} />
             </>
           )}
           {!result && (
