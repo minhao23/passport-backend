@@ -573,15 +573,11 @@ select {
 }
 footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  gap: 24px;
   padding-top: 28px;
   padding-bottom: 28px;
   border-top: 1px solid var(--line);
-}
-footer .brand {
-  font-size: 19px;
 }
 footer .footer-credit {
   display: inline-flex;
@@ -591,13 +587,6 @@ footer .footer-credit {
   color: var(--muted);
   text-decoration: underline;
   text-underline-offset: 4px;
-}
-footer > a:last-child {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  min-height: 44px;
 }
 .sr-only {
   position: absolute;
@@ -713,10 +702,6 @@ footer > a:last-child {
   }
   h2 {
     font-size: 30px;
-  }
-  footer {
-    flex-wrap: wrap;
-    gap: 16px;
   }
 }
 @media (min-width: 601px) and (max-width: 900px) {
@@ -935,13 +920,6 @@ footer > a:last-child {
 @media (max-width: 360px) {
   .nav .brand {
     font-size: 18px;
-  }
-  footer .brand {
-    font-size: 17px;
-  }
-  footer > a:last-child {
-    font-size: 11px;
-    gap: 6px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
