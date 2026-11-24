@@ -106,7 +106,7 @@ after(async () => {
   }
 });
 
-test("homepage renders the studio, comparison, guide, and navigation", async () => {
+test("homepage retains the studio and submission note without the preparation guide", async () => {
   const response = await fetch(new URL("/", url));
   assert.equal(response.status, 200);
   const html = await response.text();
@@ -114,9 +114,12 @@ test("homepage renders the studio, comparison, guide, and navigation", async () 
   assert.match(html, /<div[^>]*id="studio"/);
   assert.match(html, /<select[^>]*id="country"/);
   assert.match(html, /<input[^>]*id="photo"/);
-  assert.match(html, /<section[^>]*id="photo-tips"/);
+  assert.match(html, /<aside[^>]*aria-label="Before you submit"/);
+  assert.match(html, /acceptance isn(?:&#x27;|&#39;|')t guaranteed/);
   assert.match(html, /aria-label="Reveal background removal"/);
-  assert.match(html, /aria-label="Main navigation"/);
+  assert.doesNotMatch(html, /id="photo-tips"|href="#photo-tips"/);
+  assert.doesNotMatch(html, /guide-panel|A little prep\.|A better shot\./);
+  assert.doesNotMatch(html, /Photo guide|aria-label="Main navigation"/);
   assert.match(html, /<footer/);
   assert.match(html, /Skip to photo studio/);
   assert.match(html, /Upload your photo/);
