@@ -81,6 +81,15 @@
   border-top: 1px dashed #b9a9c5;
 }
 
+.centerline {
+  position: absolute;
+  z-index: 1;
+  top: 14px;
+  bottom: 14px;
+  left: 50%;
+  border-left: 1px dashed #b9a9c5;
+}
+
 .person {
   position: absolute;
   bottom: -12px;
@@ -104,6 +113,38 @@
 
 .caption svg {
   flex-shrink: 0;
+}
+
+.guide[data-open="true"][data-motion-enabled="true"] .person {
+  animation: centerPortrait 3s cubic-bezier(0.16, 1, 0.3, 1) infinite both;
+}
+
+.guide[data-open="true"][data-motion-enabled="true"] .caption svg {
+  animation: confirmCentering 3s linear infinite both;
+}
+
+@keyframes centerPortrait {
+  0%,
+  16.6667% {
+    transform: translateX(calc(-50% - 24px));
+  }
+
+  43.3333%,
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes confirmCentering {
+  0%,
+  40% {
+    opacity: 0;
+  }
+
+  50%,
+  100% {
+    opacity: 1;
+  }
 }
 
 .advice p,
@@ -180,6 +221,13 @@
 
 .toggle[aria-expanded="true"] .chevron {
   transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide[data-open="true"][data-motion-enabled="true"] .person,
+  .guide[data-open="true"][data-motion-enabled="true"] .caption svg {
+    animation: none;
+  }
 }
 
 @media (max-width: 600px) {

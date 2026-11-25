@@ -55,9 +55,10 @@
   touch-action: pan-y;
 }
 
-.stage:focus-within {
-  outline: 3px solid #a9bf72;
-  outline-offset: 5px;
+.stage[data-keyboard-focused="true"] .divider {
+  background: var(--ink);
+  outline: 2px solid white;
+  box-shadow: none;
 }
 
 @media (max-width: 900px) {

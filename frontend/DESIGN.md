@@ -237,7 +237,7 @@ Most depth comes from tonal surfaces and fine borders: the page, white working a
 - **Comparison Stage** (`0 16px 40px #243c3210`): soft lift on the existing image stage.
 - **Comparison Divider** (`0 0 0 1px #243c3230`): contrast around the white two-pixel divider.
 
-Keyboard focus is an outline, not a shadow: general controls use 3px in `focus` with a 5px offset. The comparison retains its own 3px `#a9bf72` focus-within outline and 5px offset.
+Keyboard focus is an outline, not a shadow: general controls use 3px in `focus` with a 5px offset. The comparison has no outer focus ring; keyboard-only focus uses an ink-colored divider with a 2px white outline.
 
 **The Local Depth Rule.** Keep ambient lift confined to the existing comparison; use tone and fine boundaries for the form, guide, and workspace.
 
@@ -283,7 +283,16 @@ The retained CSS/Lucide illustration has a 200px by 250px window, growing to 215
 
 Its existing animation traverses at 0.012 percentage points per millisecond, reverses at the limits, and pauses on mouse hover, keyboard focus, drag, or reduced-motion preference. Pointer dragging and one-percent arrow-key steps remain intact. Do not reproduce a mockup's approximate comparison in place of this component.
 
-Processing spinners rotate over 1.2s linearly; reduced motion disables them and all CSS transitions, changes smooth scrolling to auto, and stops the comparison's automatic sweep. No new motion is specified.
+Processing spinners rotate over 1.2s linearly; reduced motion disables them and all CSS transitions, changes smooth scrolling to auto, and stops the comparison's automatic sweep.
+
+The completed-result framing help repeats its centering demonstration every three seconds.
+Its Lucide portrait moves 24px horizontally into the fixed crop's center; a dashed
+centerline and the "Center your face in the crop" caption explain the goal.
+The original slide timing is retained, followed by a longer centered hold before
+the next replay. The check appears once aligned. Manual playback controls were
+removed at the user's request. Playback pauses offscreen and in hidden tabs.
+Reduced motion shows a centered still and check.
+This uses CSS and browser animation APIs, without a new raster asset or dependency.
 
 The sidecar intentionally contains five actual source-derived previews: primary action, country field, navigation, error alert, and illustrated framing guide. They are framework-free HTML/CSS samples, not a substitute for the app's handlers. There is no chip component to invent, and protected raster content is not duplicated into previews.
 
