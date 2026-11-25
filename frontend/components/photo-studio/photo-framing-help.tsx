@@ -1,12 +1,53 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Check, ChevronDown, Info, UserRound } from "lucide-react";
 import styles from "./photo-framing-help.module.css";
 
 export default function PhotoFramingHelp() {
   const [open, setOpen] = useState(false);
   const contentId = useId();
+  const guideRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const guide = guideRef.current;
+    if (
+      !open ||
+      !guide ||
+      typeof IntersectionObserver === "undefined" ||
+      typeof guide.getAnimations !== "function"
+    ) {
+      return;
+    }
+
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let visible = false;
+    const updatePlayback = () => {
+      const playing = visible && !document.hidden && !preference.matches;
+      for (const animation of guide.getAnimations({ subtree: true })) {
+        if (playing) animation.play();
+        else animation.pause();
+      }
+    };
+
+    guide.dataset.motionEnabled = "true";
+    updatePlayback();
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        visible = entry.isIntersecting;
+        updatePlayback();
+      },
+      { threshold: 0.5 },
+    );
+    observer.observe(guide);
+    document.addEventListener("visibilitychange", updatePlayback);
+    preference.addEventListener("change", updatePlayback);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", updatePlayback);
+      preference.removeEventListener("change", updatePlayback);
+    };
+  }, [open]);
 
   return (
     <div className={styles.help}>
@@ -18,9 +59,10 @@ export default function PhotoFramingHelp() {
       >
         <div className={styles.composition}>
           <figure
+            ref={guideRef}
             className={styles.guide}
-            role="img"
-            aria-label="Leave a little headroom and keep your whole head and shoulders visible."
+            data-open={open}
+            aria-label="Center your face in the crop with similar space on both sides. Leave a little headroom and keep your whole head and shoulders visible."
           >
             <span className={styles.label}>Leave a little headroom</span>
             <div className={styles.window} aria-hidden="true">
@@ -29,6 +71,7 @@ export default function PhotoFramingHelp() {
               <span className={`${styles.corner} ${styles.bottomLeft}`} />
               <span className={`${styles.corner} ${styles.bottomRight}`} />
               <span className={styles.headroom} />
+              <span className={styles.centerline} />
               <UserRound
                 className={styles.person}
                 strokeWidth={0.8}
@@ -38,9 +81,9 @@ export default function PhotoFramingHelp() {
             <figcaption className={styles.caption}>
               <Check size={13} aria-hidden="true" />
               <span>
-                Head &amp; shoulders
+                Center your face
                 <br />
-                in frame
+                in the crop
               </span>
             </figcaption>
           </figure>

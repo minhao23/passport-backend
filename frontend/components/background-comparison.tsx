@@ -62,6 +62,7 @@ export default function BackgroundComparison() {
     <figure className={styles.comparison}>
       <div
         className={styles.stage}
+        data-keyboard-focused={focused}
         onPointerEnter={(event) => {
           if (event.pointerType === "mouse") setHovered(true);
         }}

@@ -93,6 +93,14 @@ FORM: Approved narrow extension, code-led HTML/React implementation. No new
 concept round. Keep the mobile footer compact and keyboard-operable. Omit the
 obsolete Photo guide link because its destination was removed.
 
+MOTION: Keep the crop marks fixed while the Lucide portrait moves from
+24px off-center to centered in a repeating three-second cycle. A fixed dashed
+centerline and the caption explain the goal; the check appears after alignment.
+Keep the original slide timing and hold the centered result before each replay.
+No manual playback controls, per user preference. Pause outside the viewport
+and in hidden tabs. Reduced motion shows the centered still and check.
+Use CSS and browser animation APIs, with no new dependency or raster asset.
+
 Future mockups are runnable HTML, not raster boards. Remove spent mockup
 artifacts after their approved design has been implemented and verified.
 

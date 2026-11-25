@@ -7,7 +7,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 
-async function loadComponent(filename, stubs = {}) {
+async function loadComponent(filename, stubs = {}, globals = {}) {
   const source = await readFile(
     new URL(`../frontend/components/photo-studio/${filename}`, import.meta.url),
     "utf8",
@@ -24,6 +24,7 @@ async function loadComponent(filename, stubs = {}) {
   runInNewContext(outputText, {
     exports,
     require: (name) => stubs[name] ?? require(name),
+    ...globals,
   });
   return exports.default;
 }
@@ -122,6 +123,11 @@ test("completed results order download, rules and collapsed framing help", async
       assert.match(html, /class="output-details has-result"/);
       assert.match(html, /aria-label="Framing tips" hidden=""/);
       assert.match(html, /aria-expanded="false"/);
+      assert.match(html, /<figure[^>]*data-open="false" aria-label=/);
+      assert.doesNotMatch(html, /<figure[^>]*role="img"/);
+      assert.doesNotMatch(html, /Pause|Play|motionControl/);
+      assert.match(html, /Center your face in the crop with similar space/);
+      assert.match(html, /Center your face<br\/>in the crop/);
       assert.match(html, /Shoulders cropped too tightly/);
       assert.match(
         html,
@@ -155,12 +161,14 @@ test("completed results order download, rules and collapsed framing help", async
   }
 });
 
-test("framing help toggles visibility and expanded state together without moving focus", async () => {
+test("framing help toggles its disclosure without playback controls", async () => {
   let open = false;
   const Help = await loadComponent("photo-framing-help.tsx", {
     "./photo-framing-help.module.css": helpStyles,
     react: {
+      useEffect: () => {},
       useId: () => "framing-help-test",
+      useRef: () => ({ current: null }),
       useState: () => [
         open,
         (update) => {
@@ -176,6 +184,100 @@ test("framing help toggles visibility and expanded state together without moving
     assert.equal(content.props.hidden, !expectedOpen);
     assert.equal(button.props["aria-expanded"], expectedOpen);
     assert.equal(button.props.type, "button");
+    const guide = content.props.children[0].props.children[0];
+    assert.equal(guide.props["data-open"], expectedOpen);
+    assert.equal(
+      guide.props.children.some((child) => child.type === "button"),
+      false,
+    );
     button.props.onClick();
   }
+});
+
+test("centering loop pauses offscreen or in a hidden tab and respects reduced motion", async () => {
+  let intersection;
+  let cleanup;
+  let disconnected = false;
+  const animation = {
+    playState: "running",
+    pause() {
+      this.playState = "paused";
+    },
+    play() {
+      this.playState = "running";
+    },
+  };
+  let animations = [animation];
+  const guide = { dataset: {}, getAnimations: () => animations };
+  const visibilityListeners = new Map();
+  const preferenceListeners = new Map();
+  const document = {
+    hidden: false,
+    addEventListener: (name, callback) =>
+      visibilityListeners.set(name, callback),
+    removeEventListener: (name) => visibilityListeners.delete(name),
+  };
+  const preference = {
+    matches: false,
+    addEventListener: (name, callback) =>
+      preferenceListeners.set(name, callback),
+    removeEventListener: (name) => preferenceListeners.delete(name),
+  };
+  const Help = await loadComponent(
+    "photo-framing-help.tsx",
+    {
+      "./photo-framing-help.module.css": helpStyles,
+      react: {
+        useEffect: (effect) => {
+          cleanup = effect();
+        },
+        useId: () => "motion-test",
+        useRef: () => ({ current: guide }),
+        useState: () => [true, () => {}],
+      },
+    },
+    {
+      document,
+      window: { matchMedia: () => preference },
+      IntersectionObserver: class {
+        constructor(callback) {
+          intersection = callback;
+        }
+        observe(element) {
+          assert.equal(element, guide);
+        }
+        disconnect() {
+          disconnected = true;
+        }
+      },
+    },
+  );
+
+  Help();
+  assert.equal(guide.dataset.motionEnabled, "true");
+  assert.equal(animation.playState, "paused");
+  intersection([{ isIntersecting: true }]);
+  assert.equal(animation.playState, "running");
+  document.hidden = true;
+  visibilityListeners.get("visibilitychange")();
+  assert.equal(animation.playState, "paused");
+  document.hidden = false;
+  visibilityListeners.get("visibilitychange")();
+  assert.equal(animation.playState, "running");
+  intersection([{ isIntersecting: false }]);
+  assert.equal(animation.playState, "paused");
+  intersection([{ isIntersecting: true }]);
+  assert.equal(animation.playState, "running");
+  preference.matches = true;
+  preferenceListeners.get("change")();
+  assert.equal(animation.playState, "paused");
+  // Reduced motion removes the CSS animation; an old handle must stay idle.
+  animations = [];
+  animation.playState = "idle";
+  intersection([{ isIntersecting: true }]);
+  assert.equal(animation.playState, "idle");
+  cleanup();
+  assert.equal(disconnected, true);
+  assert.equal(visibilityListeners.size, 0);
+  assert.equal(preferenceListeners.size, 0);
 });
