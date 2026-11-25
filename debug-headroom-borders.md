@@ -1,5 +1,11 @@
 # Debug Session: headroom-borders
 
+Historical investigation: 2026-11-24. Documentation refreshed: 2026-11-25.
+The frontend refactor does not change the backend fix or its recorded results.
+Current crop guidance is in `frontend/components/photo-studio/photo-framing-help.tsx`;
+startup and architecture are in `README.md`. Temporary evidence and service
+states below describe the investigation, not current availability.
+
 - **Status**: [RESOLVED]
 - **progress_status**: verified
 - **Issue**: The same portrait with extra space above the head produces lower side borders; a tighter input crop does not.
@@ -15,7 +21,8 @@
 2. Compare a synthetic continuous shoulder silhouette at 400 x 560 with the identical mask cropped by 100 pixels at the top (400 x 460).
 3. Trace the unchanged `plan_framing` function using `sys.settrace`; submit captured values to the external collector.
 4. Export both to 602 x 602 JPEG, then export the high-headroom input with only its source crop repositioned downward by 38 pixels.
-5. Exact screenshot replay awaits the original portrait file; the supplied comparison images are not locally available as original uploads.
+5. At this initial stage the original upload was unavailable. The continuation
+   below used reconstructed crops from the matching JPG, not the exact PNG.
 
 ## Actual Portrait Continuation (Pre-fix)
 - User supplied the filename `javier-cropped.png`.
@@ -26,7 +33,9 @@
 - Native replay wrote all outputs and log entries, but the command tool timed out afterward; a clean native command exit was not established.
 - Both reconstructed inputs were subsequently submitted to the existing live backend. Both returned HTTP 200 and matched the traced native JPEGs byte-for-byte, providing clean end-to-end verification.
 - No source image or backend behavior was modified.
-- User-facing comparison image: `/Users/bytedance/Desktop/passport-backend/headroom-framing-comparison.png`.
+- The comparison image was generated as an investigation artifact, not a
+  shipping UI asset or mockup. See the temporary evidence directory for retained
+  outputs; new verification captures must stay outside the repository.
 
 ## Hypotheses & Verification
 | ID | Hypothesis | Likelihood | Effort | Expected Signal | Conclusion |
@@ -108,11 +117,15 @@ No production fix or live post-fix verification had been performed at this stage
   - Tight input: bottom gaps `[0, 0]`, SHA-256 `c4f791a7a5895dcd311386757917309c821d47bc7720bf2161e5b1b57e1b211e`, byte-identical to the original live tight result.
 - The high-headroom fixed JPEG was opened and visually inspected. The lower shoulder borders are absent.
 - Verification files: `implemented-verification.json`, `live-fixed-verification.json`, `verify_implemented.py`, `verify_live_fixed.py`, and `javier-{high,tight}-fixed-live.jpg` in the evidence directory. Post-fix live evidence is recorded at NDJSON line 36.
-- The temporary collector was stopped with SIGTERM after ownership verification. Evidence files were retained; the app backend remains running.
+- The temporary collector was stopped with SIGTERM after ownership verification.
+  Evidence files were retained and the app backend was left running at that time.
 - Limitations above remain: the exact requested PNG was unavailable, and the tested ranking is not a universal border-free or official-acceptance guarantee.
 
 ## Final Evidence Gate
 - **Evidence Sources**: User screenshots; matching original JPG; external NDJSON lines 1-36; implemented `src/services/photo_framing.py`; original and post-fix live HTTP 200 responses with JPEG SHA-256 parity; inspected source portraits, comparison outputs, and fixed high-headroom JPEG; 1,742-case candidate matrix and implementation parity; 108 implemented backend tests; passing Ruff lint/format checks; 102 scalar-oracle checks
 - **progress_status**: verified
 - **Hypothesis Conclusions**: A CONFIRMED; B CONFIRMED; C REJECTED as primary cause; D REJECTED for the current local replay
-- **Cleanup State**: No instrumentation was added to business code. Investigation resolved and temporary collector stopped; evidence retained. App backend remains running on port 8000.
+- **Cleanup State**: No instrumentation was added to business code. Investigation
+  resolved and temporary collector stopped; evidence retained. Backend was left
+  running on port 8000 at verification time. Temporary assets may not survive
+  cleanup or be available on other checkouts.

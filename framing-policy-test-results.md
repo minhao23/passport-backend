@@ -5,6 +5,12 @@ Date: 2026-11-24
 Status: **Implemented and verified** in the backend. The tables below preserve
 the original comparison against the pre-fix rule.
 
+Documentation refreshed: 2026-11-25. The frontend consolidation does not change
+this policy or rerun the recorded matrix. User-facing off-center advice now
+lives in `frontend/components/photo-studio/photo-framing-help.tsx`; automatic
+face centering remains the last tie-breaker, not the primary crop objective.
+Current architecture and commands are documented in `README.md`.
+
 ## Recommendation
 
 Use **clean-edge-first selection with gap ranking**, while keeping the current
@@ -128,7 +134,9 @@ blanket strict-edge requirement.
   byte-identical to its pre-fix output. The fixed high JPEG was visually inspected.
 - Models, export settings, proportional scaling, and frontend code are unchanged.
   No bounded-extra-crop or strict-only alternative was implemented.
-- Investigation collector stopped; evidence retained; app backend remains running.
+- At verification time, the collector was stopped and evidence retained. The
+  backend was left running; this historical report does not assert current
+  service availability.
 
 ## Limitations
 
@@ -163,6 +171,9 @@ regression tests subsequently passed Ruff lint and format checks via `uvx`.
 Temporary scripts, masks, and detailed JSON results are under:
 
 `/tmp/passport-headroom-borders-20261124`
+
+These are local, temporary evidence assets, not tracked reproduction fixtures;
+they may not exist on another checkout or after temporary-directory cleanup.
 
 - `candidate_framing.py`: isolated candidate implementation.
 - `collect_portraits.py`: actual-model matte collection.

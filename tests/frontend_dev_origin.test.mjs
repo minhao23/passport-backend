@@ -1,22 +1,9 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { test } from "node:test";
-import ts from "typescript";
+import { loadFrontendESModule } from "./frontend-test-utils.mjs";
 
-const source = await readFile(
-  new URL("../frontend/next.config.ts", import.meta.url),
-  "utf8",
-);
-const { outputText } = ts.transpileModule(source, {
-  compilerOptions: {
-    module: ts.ModuleKind.ESNext,
-    target: ts.ScriptTarget.ES2022,
-  },
-});
-const { default: config } = await import(
-  `data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`
-);
+const { default: config } = await loadFrontendESModule("next.config.ts");
 const require = createRequire(import.meta.url);
 const {
   blockCrossSiteDEV,

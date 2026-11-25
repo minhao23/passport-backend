@@ -10,6 +10,7 @@
     "build": "npm run build --workspace frontend",
     "start": "npm run start --workspace frontend",
     "typecheck": "npm run typecheck --workspace frontend",
+    "test:frontend": "npm run build && node --test tests/frontend_*.test.mjs",
     "format": "prettier --write \"frontend/**/*.{ts,tsx,css}\"",
     "format:check": "prettier --check \"frontend/**/*.{ts,tsx,css}\""
   },

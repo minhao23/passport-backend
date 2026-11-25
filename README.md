@@ -18,33 +18,71 @@ Dockerfile.frontend Frontend-only production image
 
 ### Frontend structure
 
-`frontend/app/page.tsx` only composes the page sections. Reusable UI lives in
-`frontend/components/`, with the upload form, feedback, and preview workspace
-grouped under `components/photo-studio/`. `frontend/hooks/use-photo-studio.ts`
-owns photo selection, validation, processing requests, cancellation, and
-preview/result object-URL cleanup. Shared countries, errors, and limits remain
-in `frontend/lib/`; the server-side proxy remains in `app/api/process/route.ts`.
+`frontend/app/page.tsx` delegates to the Server Component
+`components/passport-page.tsx`, which contains the header, interactive studio,
+submission warning/examples, and contact-only footer.
+
+`components/photo-studio/` keeps the interactive UI and state together:
+
+| Module | Responsibility |
+| --- | --- |
+| `photo-studio.tsx` | Hero/workspace composition, error feedback, crop opening |
+| `use-photo-studio.ts` | Selection, validation, requests, cancellation, object URLs |
+| `photo-upload-form.tsx` | Country selection, file picker/drop, replacement |
+| `photo-workspace.tsx` | Previews, result details, desktop/phone preparation tips |
+| `photo-processing-actions.tsx` | Shared Generate/Cancel buttons and local action focus |
+| `photo-framing-help.tsx` | Optional result advice and centering animation |
+| `photo-crop-modal.tsx` | On-demand rectangular crop editor |
+
+Small single-owner components are combined with their owners instead of split
+into extra files. Styles stay beside their components; `app/globals.css` retains
+tokens, shared controls, and page-wide rules. Shared countries, errors, limits,
+crop geometry, and downloads remain in `frontend/lib/`; the server-side proxy
+remains in `app/api/process/route.ts`. The comparison component/assets are unchanged
+by these structural refactors.
 
 Run `npm run format` to format frontend TypeScript, TSX, and CSS, or
 `npm run format:check` to check formatting without changing files.
 
-Double-click a selected photo to open the rectangular crop editor. Keyboard users
-can focus the photo and press Enter or Space. **Save crop** updates the preview and the photo used for generation;
+Double-click a selected photo on desktop, or tap it on a phone, to open the
+rectangular crop editor. Keyboard users can focus it and press Enter or Space.
+The editor and crop library load only when needed.
+**Save crop** updates the preview and the photo used for generation;
 Cancel or Escape leaves it unchanged. Reset restores the full original on save.
 The original stays in local state for re-cropping without repeated compression.
 Cropping uses original-resolution pixels and lossless PNG export, with the same
 10 MB upload limit. Nothing is sent until **Generate passport photo** is clicked.
 The modal lives in `components/photo-studio/photo-crop-modal.tsx`; pixel geometry
-and export live in `lib/photo-crop.ts`. Run `node --test tests/frontend_crop.test.mjs`
-for the crop/export regression checks.
+and export live in `lib/photo-crop.ts`. Crop/export and download regression checks
+share `tests/frontend_photo_utils.test.mjs`.
 
 Each successful generation automatically starts a JPEG download. The result
 panel keeps country and photo size, with a **Download JPEG** button for saving
 again or when the browser blocks automatic downloads. Browser settings determine
 whether a Save dialog appears. Re-rendering, cropping, cancelling, and failed
 requests do not start downloads. The download helper and shared filename live in
-`lib/photo-download.ts`; run `node --test tests/frontend_download.test.mjs` for
-its regression checks.
+`lib/photo-download.ts`; run `node --test tests/frontend_photo_utils.test.mjs` for
+the combined utility checks.
+
+Phones at widths up to 600px show one preview at a time, with Original/Result
+switching, tap-to-crop, full-width actions, and initially closed Photo tips.
+Desktop keeps the paired previews and double-click crop interaction.
+
+Completed details read: country/dimensions, Download JPEG, authority reminder,
+then **Not happy with the framing?**. This initially closed disclosure contains
+crop advice and common issues, including centering the face using the original
+photo's crop. Its CSS/Lucide diagram repeats every three seconds without manual
+playback controls; offscreen/hidden-tab playback pauses, and reduced motion shows
+a centered still. A new result starts closed.
+
+The large preparation panel and dead Photo guide navigation are removed. The
+separate acceptance warning remains. **View photo examples** displays
+`assets/sample_rules.jpg` inline, centered up to 653px wide, with only
+`taken from: Singapore ICA.` above it. There is no image popup or full-image link.
+The footer contains only **Contact me**, linking to `https://minhao.dev/home`.
+Future mockups must be runnable HTML; keep verification screenshots outside the
+repository. Product constraints and current styling live in `frontend/PRODUCT.md`
+and `frontend/DESIGN.md`.
 
 ### Backend structure
 
@@ -63,9 +101,9 @@ and cancellation, while `services/processing_jobs.py` bounds admission and
 native work. Shared limits, country sizes, and image-header checks remain in
 `src/utils/`; public error classes remain in `src/errors/`.
 
-The refactor keeps the same model, image formulas, country sizes, request
-limits, and HTTP response contract. The Uvicorn target remains `main:app`
-with `--app-dir src`.
+The current pipeline uses the trained YOLO checkpoint, YuNet face guidance, and
+MODNet portrait matting through `rembg`. The Uvicorn target remains `main:app`
+with `--app-dir src`. The frontend refactor does not alter this pipeline.
 
 Python formatting and linting use the pinned Ruff development dependency:
 
@@ -111,7 +149,7 @@ bundles its checksum-verified weights during the build, not during requests. Kee
 `best.pt` at the repository root; its path is resolved from the backend source,
 independent of the working directory. Wait for application startup to finish before generating.
 FastAPI's interactive API documentation is at http://127.0.0.1:8000/docs.
-Once both models have loaded, http://127.0.0.1:8000/health returns
+Once startup completes, http://127.0.0.1:8000/health returns
 `{"status":"ready"}`.
 
 ### 2. Start Next.js in a second terminal
@@ -126,6 +164,8 @@ Open http://localhost:3000. Select a country, upload a JPG, PNG, or WebP
 of up to 10 MB, generate a photo, and download the resulting JPEG.
 The original upload is previewed separately from the generated result.
 Changing the country or upload clears the previous result.
+`frontend/next.config.ts` also allows `127.0.0.1` as a development origin, so
+http://127.0.0.1:3000 receives the hydrated upload controls too.
 Uploads must also be at most 20 megapixels, with neither side exceeding
 10,000 pixels. Accepted images are reduced proportionally to a maximum
 1,024-pixel working side before model processing. Large JPEGs are downsampled
@@ -138,19 +178,19 @@ After selection, use **Change photo** below Generate or beside the original
 preview to choose a replacement. Invalid replacements leave the current photo
 intact. **Remove photo** returns to the upload state.
 
-During generation, **Cancel processing** keeps the original photo available
+During generation, **Cancel** keeps the original photo, crop, and country available
 for replacement or retry and discards any late response. The proxy forwards
 the disconnect to FastAPI. A waiting photo is removed from the queue without
 running the model. For an active photo, FastAPI checks for cancellation between
 processing stages. A native model inference already in progress finishes its current
 call before stopping; cancellation does not forcibly kill the shared model.
-Restart the backend after updating it to enable these cancellation checkpoints.
 
 `BACKEND_URL` is server-only and defaults to `http://127.0.0.1:8000`.
 Restart Next.js after changing it. The browser sends multipart requests to
 `/api/process`; this Next.js route forwards the file to
 `POST /images/process?country=...` and streams the JPEG back.
-This avoids browser CORS configuration and keeps the backend address private.
+This avoids browser-to-FastAPI processing CORS and keeps `BACKEND_URL` out of
+the browser bundle. It does not authenticate or protect a publicly exposed backend.
 
 ### Frontend startup recovery
 
@@ -198,8 +238,7 @@ timeout, unexpected response, and unknown server errors use
 `INTERNAL_SERVER_ERROR` with status 502 or 504. Frontend file-size validation
 uses `PHOTO_ISSUE` with status 413. Users receive photo guidance for input issues
 and retry guidance for service issues, without private exception details.
-Restart the Python backend to enable the new response codes. The proxy also
-recognizes the original backend's known detection/decode error messages.
+The proxy also recognizes the original backend's known detection/decode messages.
 
 ## Checks and production
 
@@ -209,10 +248,20 @@ PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v
 .venv/bin/python -m ruff format --check src tests
 npm run format:check
 npm run typecheck
-npm run build
-node --test tests/frontend_limits.test.mjs
+npm run test:frontend
 npm run start
 ```
+
+`npm run test:frontend` builds the production app and runs every
+`tests/frontend_*.test.mjs` file. Component tests load actual combined modules via
+`tests/frontend-test-utils.mjs`, which also owns module loading, browser-global
+mocks, markup assertions, and the state/effect harness. Page, preparation tips,
+and help checks share `frontend_components.test.mjs`; state tests cover stale
+selection, crop reset,
+cancellation/retry, object-URL cleanup, downloads, and local action focus.
+Integration tests start Next.js and a local upstream stub, including the real
+60-second stalled-upload deadline. Backend tests stub native inference; they do
+not measure model quality or prove a deployment memory ceiling.
 
 Deploy the Next.js app as a Node.js service, not a static export. Deploy FastAPI
 separately and set `BACKEND_URL` to its reachable address. Configure infrastructure
@@ -237,7 +286,7 @@ Each FastAPI process admits at most three photos before multipart parsing and
 runs one photo-processing job at a time. When the worker is occupied, up to two other
 photos may upload or wait. Completed, validated uploads take worker slots in
 FIFO order; a slow upload does not prevent a ready photo from running.
-The worker is a thread in the server process and reuses both loaded models.
+The worker is a thread in the server process and reuses the loaded models.
 YOLO runs before background removal, avoiding segmentation for photos with no
 usable detection. Its prediction stage remains locked because its predictor
 setup and arguments are mutable shared state. A photo cancelled while waiting
@@ -466,9 +515,9 @@ from the backend service; they are not used by this Docker build.
 
 The image installs Python 3.11, CPU-only PyTorch wheels, the dependencies in
 `requirements.txt`, and native libraries required by OpenCV. It includes
-`best.pt` and downloads the U2Net human-segmentation model during the build, so normal
+`best.pt` and downloads the checksum-verified MODNet weights during the build, so normal
 container startup does not need to download it. The initial build needs
-internet access and sufficient disk space for the dependencies and large model;
+internet access and sufficient disk space for dependencies and model weights;
 subsequent code-only builds can reuse the model layer. Do not mount an empty
 directory over `/opt/models` or override `U2NET_HOME`, as that would hide the
 bundled model.
@@ -532,9 +581,10 @@ in the source), plus space below the estimated chin of at least 10% of the
 estimated head height. Both lower edges must have substantial foreground coverage,
 or a small corner must come from a continuous outward-sloping shoulder.
 An abrupt or flat inset-mask cutoff is not accepted as a natural shoulder.
-Among equally large crops it prefers retaining existing headroom within those
-head and chin margins, then
-centering the face where possible. It does not
+At each width, strict lower-edge positions outrank the continuous-slope fallback.
+Eligible positions minimize the larger bottom gap, then the combined gaps.
+Remaining ties favor retained headroom, then face centering. Centering is not the
+primary objective; users can adjust it in the crop editor. It does not
 add white padding to force a headroom percentage. Cumulative foreground counts
 avoid repeatedly scanning the same mask pixels; source dimensions bound both
 the width and position searches to at most 1,024 pixels per side.
@@ -573,5 +623,11 @@ PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p test_photo_comp
 Restart the backend after source changes unless Uvicorn is running with `--reload`.
 The default backend command does not enable reload.
 
-User previews use local object URLs. Google Fonts supplies the page fonts, with local sans-serif
-fallbacks if unavailable.
+User previews use local object URLs. Gothic A1, Bricolage Grotesque, and DM Sans
+are self-hosted through `next/font/local`, with license files in
+`frontend/assets/fonts/`; page rendering does not request Google Fonts.
+
+The dated backend investigation and matrix results are preserved in
+`debug-headroom-borders.md` and `framing-policy-test-results.md`. Their local
+measurements are historical evidence, not universal framing, acceptance, or
+Linux 2 GB memory guarantees.
