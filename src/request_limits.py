@@ -4,7 +4,7 @@ from time import monotonic
 from starlette.formparsers import MultiPartException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from api.responses import error_response
+from api import error_response
 from errors import ServiceBusyError, UploadTimeoutError, UploadTooLargeError
 from services.processing_jobs import processing_pool
 from utils.limits import MAX_REQUEST_BYTES, MAX_UPLOAD_SECONDS

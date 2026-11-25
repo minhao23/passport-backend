@@ -1,9 +1,11 @@
+"""HTTP routes and public error responses for the photo service."""
+
 import logging
 from typing import Annotated
 
 from fastapi import APIRouter, File, Request, Response, UploadFile
+from starlette.responses import JSONResponse
 
-from api.responses import error_response
 from errors import (
     InternalServerError,
     InvalidCountryError,
@@ -23,6 +25,23 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+def error_response(error: ProcessingError) -> JSONResponse:
+    headers = {"Cache-Control": "no-store"}
+    if isinstance(error, ServiceBusyError):
+        headers["Retry-After"] = "10"
+    return JSONResponse(
+        {"code": error.code, "detail": error.message},
+        status_code=error.status_code,
+        headers=headers,
+    )
+
+
+@router.get("/health")
+def health() -> dict[str, str]:
+    """Report readiness after application startup finishes."""
+    return {"status": "ready"}
+
+
 @router.post("/images/process")
 async def process_image(
     request: Request, country: str, file: Annotated[UploadFile, File()]
@@ -30,10 +49,8 @@ async def process_image(
     """Validate a photo upload and return its processed passport JPEG."""
     if file.content_type not in ACCEPTED_CONTENT_TYPES:
         return error_response(InvalidImageTypeError())
-
     if country not in passport_photo_sizes_mm:
         return error_response(InvalidCountryError())
-
     if file.size is not None and file.size > MAX_FILE_BYTES:
         return error_response(UploadTooLargeError())
     permit = getattr(getattr(request, "state", None), "processing_permit", None)
@@ -51,7 +68,6 @@ async def process_image(
             media_type="image/jpeg",
             headers={"Cache-Control": "no-store"},
         )
-
     except ProcessingCancelledError:
         logger.info("Photo processing cancelled after client disconnect")
         return Response(status_code=499)
