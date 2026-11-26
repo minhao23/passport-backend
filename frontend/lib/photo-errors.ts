@@ -9,6 +9,7 @@ export type PhotoError = {
   code: PhotoErrorCode;
   title: string;
   detail: string;
+  tips?: string[];
 };
 
 export function photoError(code: PhotoErrorCode, detail?: string): PhotoError {
@@ -47,7 +48,7 @@ export function normalizePhotoError(
 ): PhotoError {
   const data =
     payload && typeof payload === "object"
-      ? (payload as { code?: unknown; detail?: unknown })
+      ? (payload as { code?: unknown; detail?: unknown; tips?: unknown })
       : {};
   const detail = typeof data.detail === "string" ? data.detail : undefined;
   if (data.code === "INTERNAL_SERVER_ERROR")
@@ -58,7 +59,19 @@ export function normalizePhotoError(
   if (data.code === "PERSON_NOT_DETECTED")
     return photoError("PERSON_NOT_DETECTED");
   if (data.code === "PHOTO_ISSUE" || data.code === "INVALID_COUNTRY") {
-    return photoError(data.code, detail);
+    const error = photoError(data.code, detail);
+    if (
+      data.code === "PHOTO_ISSUE" &&
+      Array.isArray(data.tips) &&
+      data.tips.length > 0 &&
+      data.tips.every(
+        (tip): tip is string =>
+          typeof tip === "string" && tip.trim().length > 0,
+      )
+    ) {
+      return { ...error, tips: data.tips };
+    }
+    return error;
   }
   // Support the original Python API while deployments are upgraded.
   if (detail === "No person detected") return photoError("PERSON_NOT_DETECTED");

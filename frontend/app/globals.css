@@ -236,6 +236,13 @@ h3 {
 .error p {
   margin: 4px 0 0;
 }
+.error ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+.error li + li {
+  margin-top: 4px;
+}
 
 .submission-guidance {
   padding-top: 20px;

@@ -7,6 +7,7 @@ class ProcessingError(Exception):
 
     code = "INTERNAL_SERVER_ERROR"
     status_code = 500
+    tips: tuple[str, ...] = ()
     message = (
         "We couldn't create your photo because of a server problem. "
         "Please try again in a moment. You don't need to change your photo."
@@ -97,8 +98,13 @@ class SubjectTooSmallError(PhotoIssueError):
 
 class SubjectFramingError(PhotoIssueError):
     message = (
-        "We couldn't frame this photo cleanly without side borders. Try a wider, "
-        "front-facing photo with your full head and shoulders visible."
+        "We couldn't frame this photo cleanly without leaving white borders "
+        "along the sides."
+    )
+    tips = (
+        "Adjust the crop: widen or reset it to show more of both shoulders.",
+        "Take a new photo: hold the camera farther away so your whole head "
+        "and both shoulders are visible.",
     )
 
 

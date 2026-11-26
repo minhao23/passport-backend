@@ -306,6 +306,9 @@ top rule, not a card, and share one content definition across desktop and phone.
 The acceptance warning remains outside the workspace.
 
 The recoverable error alert uses a warm background, matching border, 20px padding, 12px icon gap, and 13px text at 1.6 line height. It has `role="alert"` and receives focus when an error appears. The result heading receives focus when processing succeeds. Neither state is communicated by color alone.
+Framing errors use a short explanation followed by two bulleted tips: adjust the
+crop or take a new photo. Keep the tips inside the same alert, with an 8px gap
+above the list and 4px between items. Other error messages remain paragraphs.
 
 ### Framing Help and Crop Editor
 

@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { loadFrontendESModule, mockGlobal } from "./frontend-test-utils.mjs";
+import {
+  framingError,
+  loadFrontendESModule,
+  mockGlobal,
+} from "./frontend-test-utils.mjs";
 
 const { cropPixels, createCroppedFile, FULL_PHOTO_CROP } =
   await loadFrontendESModule("lib/photo-crop.ts");
@@ -9,6 +13,34 @@ const { downloadPassportPhoto, passportPhotoFilename } =
 const crop = { unit: "%", x: 10, y: 20, width: 50, height: 40 };
 const image = { naturalWidth: 1200, naturalHeight: 1800 };
 const original = new File(["original"], "portrait.jpg", { type: "image/jpeg" });
+const { normalizePhotoError } = await loadFrontendESModule("lib/photo-errors.ts");
+
+test("framing tips survive proxy and browser normalization without parsing prose", () => {
+  const error = normalizePhotoError(framingError, 422);
+  assert.deepEqual(error, {
+    ...framingError,
+    title: "This photo needs a little attention",
+  });
+  assert.deepEqual(normalizePhotoError(error, 422), error);
+  for (const tips of [undefined, null, [], "not a list", [1], [""], [" ", "Tip"]]) {
+    assert.equal(
+      normalizePhotoError({ ...framingError, tips }, 422).tips,
+      undefined,
+    );
+  }
+  for (const code of [
+    "INTERNAL_SERVER_ERROR", "SERVICE_BUSY", "PERSON_NOT_DETECTED", "INVALID_COUNTRY",
+  ]) {
+    assert.equal(
+      normalizePhotoError({ ...framingError, code }, 422).tips,
+      undefined,
+    );
+  }
+  assert.equal(
+    normalizePhotoError({ code: "PHOTO_ISSUE", detail: "Existing message." }, 422).detail,
+    "Existing message.",
+  );
+});
 
 test("crop coordinates use original pixels, not the displayed preview size", () => {
   assert.deepEqual(cropPixels(crop, 1200, 1800), {

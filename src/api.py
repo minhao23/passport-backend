@@ -29,8 +29,14 @@ def error_response(error: ProcessingError) -> JSONResponse:
     headers = {"Cache-Control": "no-store"}
     if isinstance(error, ServiceBusyError):
         headers["Retry-After"] = "10"
+    body: dict[str, str | tuple[str, ...]] = {
+        "code": error.code,
+        "detail": error.message,
+    }
+    if error.tips:
+        body["tips"] = error.tips
     return JSONResponse(
-        {"code": error.code, "detail": error.message},
+        body,
         status_code=error.status_code,
         headers=headers,
     )

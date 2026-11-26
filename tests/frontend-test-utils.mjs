@@ -9,6 +9,15 @@ import ts from "typescript";
 const root = fileURLToPath(new URL("../frontend/", import.meta.url));
 const require = createRequire(import.meta.url);
 
+export const framingError = {
+  code: "PHOTO_ISSUE",
+  detail: "We couldn't frame this photo cleanly without leaving white borders along the sides.",
+  tips: [
+    "Adjust the crop: widen or reset it to show more of both shoulders.",
+    "Take a new photo: hold the camera farther away so your whole head and both shoulders are visible.",
+  ],
+};
+
 export async function loadFrontendESModule(filename) {
   const { outputText } = ts.transpileModule(
     readFileSync(resolve(root, filename), "utf8"),

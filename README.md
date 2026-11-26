@@ -219,7 +219,9 @@ ignored by Git; neither belongs in a commit.
 
 ## Processing errors
 
-FastAPI returns JSON with `code` and `detail` for processing failures:
+FastAPI returns JSON with `code` and `detail` for processing failures. Framing
+failures also include a `tips` list, shown as two bullets beneath the explanation:
+adjust the crop, or take a new photo with more of both shoulders visible.
 
 | Code | Status | Meaning |
 | --- | --- | --- |

@@ -6,6 +6,7 @@ import { once } from "node:events";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { framingError } from "./frontend-test-utils.mjs";
 
 const require = createRequire(import.meta.url);
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -25,7 +26,7 @@ function reply(response, status = 200) {
     "Content-Type": status === 200 ? "image/jpeg" : "application/json",
   });
   response.end(status === 200 ? Buffer.from([0xff, 0xd8, 0xff, 0xd9])
-    : JSON.stringify({ code, detail: "Test upstream response" }));
+    : JSON.stringify(mode === "framing" ? framingError : { code, detail: "Test upstream response" }));
 }
 
 function form(size = 5) {
@@ -51,7 +52,7 @@ before(async () => {
       held.push(response);
       onHeld();
     } else {
-      reply(response, mode === "busy" ? 503 : mode === "no-person" ? 422
+      reply(response, mode === "busy" ? 503 : mode === "no-person" || mode === "framing" ? 422
         : mode === "timeout" ? 408 : 200);
     }
   });
@@ -252,6 +253,21 @@ test("backend busy and no-person errors remain distinct", async () => {
     const timeout = await send();
     assert.equal(timeout.response.status, 408);
     assert.equal(timeout.payload.code, "PHOTO_ISSUE");
+  } finally {
+    mode = "success";
+  }
+});
+
+test("proxy preserves the framing introduction and recovery tips", async () => {
+  try {
+    mode = "framing";
+    const { response, payload } = await send();
+    assert.equal(response.status, 422);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.deepEqual(payload, {
+      ...framingError,
+      title: "This photo needs a little attention",
+    });
   } finally {
     mode = "success";
   }
