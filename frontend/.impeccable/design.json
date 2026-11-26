@@ -1,0 +1,445 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-25T10:34:46.088Z",
+  "title": "Design System: Passport Studio",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "#f7f8f5",
+        "tonalRamp": [
+          "oklch(15.00% 0.0015 121.56)",
+          "oklch(26.43% 0.0027 121.56)",
+          "oklch(37.86% 0.0039 121.56)",
+          "oklch(49.29% 0.0041 121.56)",
+          "oklch(60.71% 0.0041 121.56)",
+          "oklch(72.14% 0.0041 121.56)",
+          "oklch(83.57% 0.0027 121.56)",
+          "oklch(95.00% 0.0008 121.56)"
+        ]
+      },
+      "ink": {
+        "role": "primary",
+        "displayName": "Ink",
+        "canonical": "#334532",
+        "tonalRamp": [
+          "oklch(15.00% 0.0148 143.41)",
+          "oklch(26.43% 0.0260 143.41)",
+          "oklch(37.86% 0.0373 143.41)",
+          "oklch(49.29% 0.0394 143.41)",
+          "oklch(60.71% 0.0394 143.41)",
+          "oklch(72.14% 0.0394 143.41)",
+          "oklch(83.57% 0.0259 143.41)",
+          "oklch(95.00% 0.0079 143.41)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted",
+        "canonical": "#586553",
+        "tonalRamp": [
+          "oklch(15.00% 0.0121 137.00)",
+          "oklch(26.43% 0.0214 137.00)",
+          "oklch(37.86% 0.0306 137.00)",
+          "oklch(49.29% 0.0323 137.00)",
+          "oklch(60.71% 0.0323 137.00)",
+          "oklch(72.14% 0.0323 137.00)",
+          "oklch(83.57% 0.0212 137.00)",
+          "oklch(95.00% 0.0065 137.00)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Line",
+        "canonical": "#d6ddd2",
+        "tonalRamp": [
+          "oklch(15.00% 0.0062 133.83)",
+          "oklch(26.43% 0.0110 133.83)",
+          "oklch(37.86% 0.0157 133.83)",
+          "oklch(49.29% 0.0166 133.83)",
+          "oklch(60.71% 0.0166 133.83)",
+          "oklch(72.14% 0.0166 133.83)",
+          "oklch(83.57% 0.0109 133.83)",
+          "oklch(95.00% 0.0033 133.83)"
+        ]
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Accent",
+        "canonical": "#3d563c",
+        "tonalRamp": [
+          "oklch(15.00% 0.0195 143.67)",
+          "oklch(26.43% 0.0344 143.67)",
+          "oklch(37.86% 0.0493 143.67)",
+          "oklch(49.29% 0.0521 143.67)",
+          "oklch(60.71% 0.0521 143.67)",
+          "oklch(72.14% 0.0521 143.67)",
+          "oklch(83.57% 0.0342 143.67)",
+          "oklch(95.00% 0.0104 143.67)"
+        ]
+      },
+      "lilac": {
+        "role": "secondary",
+        "displayName": "Lilac",
+        "canonical": "#ebe7f2",
+        "tonalRamp": [
+          "oklch(15.00% 0.0057 302.55)",
+          "oklch(26.43% 0.0101 302.55)",
+          "oklch(37.86% 0.0145 302.55)",
+          "oklch(49.29% 0.0153 302.55)",
+          "oklch(60.71% 0.0153 302.55)",
+          "oklch(72.14% 0.0153 302.55)",
+          "oklch(83.57% 0.0101 302.55)",
+          "oklch(95.00% 0.0031 302.55)"
+        ]
+      },
+      "yellow": {
+        "role": "tertiary",
+        "displayName": "Yellow",
+        "canonical": "#f3df85",
+        "tonalRamp": [
+          "oklch(15.00% 0.0423 97.16)",
+          "oklch(26.43% 0.0745 97.16)",
+          "oklch(37.86% 0.1068 97.16)",
+          "oklch(49.29% 0.1128 97.16)",
+          "oklch(60.71% 0.1128 97.16)",
+          "oklch(72.14% 0.1128 97.16)",
+          "oklch(83.57% 0.0741 97.16)",
+          "oklch(95.00% 0.0226 97.16)"
+        ]
+      },
+      "focus": {
+        "role": "primary",
+        "displayName": "Focus",
+        "canonical": "#527449",
+        "tonalRamp": [
+          "oklch(15.00% 0.0286 139.22)",
+          "oklch(26.43% 0.0503 139.22)",
+          "oklch(37.86% 0.0721 139.22)",
+          "oklch(49.29% 0.0762 139.22)",
+          "oklch(60.71% 0.0762 139.22)",
+          "oklch(72.14% 0.0762 139.22)",
+          "oklch(83.57% 0.0501 139.22)",
+          "oklch(95.00% 0.0152 139.22)"
+        ]
+      },
+      "white": {
+        "role": "neutral",
+        "displayName": "White",
+        "canonical": "white",
+        "tonalRamp": [
+          "oklch(15.00% 0.0000 89.88)",
+          "oklch(26.43% 0.0000 89.88)",
+          "oklch(37.86% 0.0000 89.88)",
+          "oklch(49.29% 0.0000 89.88)",
+          "oklch(60.71% 0.0000 89.88)",
+          "oklch(72.14% 0.0000 89.88)",
+          "oklch(83.57% 0.0000 89.88)",
+          "oklch(95.00% 0.0000 89.88)"
+        ]
+      },
+      "accent-hover": {
+        "role": "primary",
+        "displayName": "Accent Hover",
+        "canonical": "#2d432d",
+        "tonalRamp": [
+          "oklch(15.00% 0.0175 144.53)",
+          "oklch(26.43% 0.0308 144.53)",
+          "oklch(37.86% 0.0441 144.53)",
+          "oklch(49.29% 0.0465 144.53)",
+          "oklch(60.71% 0.0465 144.53)",
+          "oklch(72.14% 0.0465 144.53)",
+          "oklch(83.57% 0.0306 144.53)",
+          "oklch(95.00% 0.0093 144.53)"
+        ]
+      },
+      "disabled": {
+        "role": "neutral",
+        "displayName": "Disabled",
+        "canonical": "#dedfd9",
+        "tonalRamp": [
+          "oklch(15.00% 0.0031 114.23)",
+          "oklch(26.43% 0.0054 114.23)",
+          "oklch(37.86% 0.0077 114.23)",
+          "oklch(49.29% 0.0081 114.23)",
+          "oklch(60.71% 0.0081 114.23)",
+          "oklch(72.14% 0.0081 114.23)",
+          "oklch(83.57% 0.0053 114.23)",
+          "oklch(95.00% 0.0016 114.23)"
+        ]
+      },
+      "field-border": {
+        "role": "neutral",
+        "displayName": "Field Border",
+        "canonical": "#879481",
+        "tonalRamp": [
+          "oklch(15.00% 0.0118 135.67)",
+          "oklch(26.43% 0.0208 135.67)",
+          "oklch(37.86% 0.0298 135.67)",
+          "oklch(49.29% 0.0315 135.67)",
+          "oklch(60.71% 0.0315 135.67)",
+          "oklch(72.14% 0.0315 135.67)",
+          "oklch(83.57% 0.0207 135.67)",
+          "oklch(95.00% 0.0063 135.67)"
+        ]
+      },
+      "photo-surface": {
+        "role": "neutral",
+        "displayName": "Photo Surface",
+        "canonical": "#e9eee5",
+        "tonalRamp": [
+          "oklch(15.00% 0.0049 130.78)",
+          "oklch(26.43% 0.0086 130.78)",
+          "oklch(37.86% 0.0124 130.78)",
+          "oklch(49.29% 0.0131 130.78)",
+          "oklch(60.71% 0.0131 130.78)",
+          "oklch(72.14% 0.0131 130.78)",
+          "oklch(83.57% 0.0086 130.78)",
+          "oklch(95.00% 0.0026 130.78)"
+        ]
+      },
+      "guide-ink": {
+        "role": "secondary",
+        "displayName": "Guide Ink",
+        "canonical": "#625370",
+        "tonalRamp": [
+          "oklch(15.00% 0.0185 308.04)",
+          "oklch(26.43% 0.0327 308.04)",
+          "oklch(37.86% 0.0468 308.04)",
+          "oklch(49.29% 0.0495 308.04)",
+          "oklch(60.71% 0.0495 308.04)",
+          "oklch(72.14% 0.0495 308.04)",
+          "oklch(83.57% 0.0325 308.04)",
+          "oklch(95.00% 0.0099 308.04)"
+        ]
+      },
+      "guide-surface": {
+        "role": "secondary",
+        "displayName": "Guide Surface",
+        "canonical": "#f5f2f9",
+        "tonalRamp": [
+          "oklch(15.00% 0.0037 305.41)",
+          "oklch(26.43% 0.0065 305.41)",
+          "oklch(37.86% 0.0093 305.41)",
+          "oklch(49.29% 0.0098 305.41)",
+          "oklch(60.71% 0.0098 305.41)",
+          "oklch(72.14% 0.0098 305.41)",
+          "oklch(83.57% 0.0064 305.41)",
+          "oklch(95.00% 0.0020 305.41)"
+        ]
+      },
+      "error-paper": {
+        "role": "neutral",
+        "displayName": "Error Paper",
+        "canonical": "#fff0e9",
+        "tonalRamp": [
+          "oklch(15.00% 0.0071 46.81)",
+          "oklch(26.43% 0.0124 46.81)",
+          "oklch(37.86% 0.0178 46.81)",
+          "oklch(49.29% 0.0188 46.81)",
+          "oklch(60.71% 0.0188 46.81)",
+          "oklch(72.14% 0.0188 46.81)",
+          "oklch(83.57% 0.0124 46.81)",
+          "oklch(95.00% 0.0038 46.81)"
+        ]
+      },
+      "error-border": {
+        "role": "neutral",
+        "displayName": "Error Border",
+        "canonical": "#e4bba8",
+        "tonalRamp": [
+          "oklch(15.00% 0.0203 46.23)",
+          "oklch(26.43% 0.0358 46.23)",
+          "oklch(37.86% 0.0513 46.23)",
+          "oklch(49.29% 0.0542 46.23)",
+          "oklch(60.71% 0.0542 46.23)",
+          "oklch(72.14% 0.0542 46.23)",
+          "oklch(83.57% 0.0356 46.23)",
+          "oklch(95.00% 0.0108 46.23)"
+        ]
+      },
+      "error-ink": {
+        "role": "neutral",
+        "displayName": "Error Ink",
+        "canonical": "#923b26",
+        "tonalRamp": [
+          "oklch(15.00% 0.0460 34.84)",
+          "oklch(26.43% 0.0811 34.84)",
+          "oklch(37.86% 0.1162 34.84)",
+          "oklch(49.29% 0.1228 34.84)",
+          "oklch(60.71% 0.1228 34.84)",
+          "oklch(72.14% 0.1228 34.84)",
+          "oklch(83.57% 0.0807 34.84)",
+          "oklch(95.00% 0.0246 34.84)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display"
+      },
+      "headline": {
+        "displayName": "Headline"
+      },
+      "title": {
+        "displayName": "Title"
+      },
+      "body": {
+        "displayName": "Body"
+      },
+      "label": {
+        "displayName": "Label"
+      },
+      "action": {
+        "displayName": "Action"
+      },
+      "brand": {
+        "displayName": "Brand"
+      }
+    },
+    "shadows": [
+      {
+        "name": "comparison-stage",
+        "value": "0 16px 40px #243c3210",
+        "purpose": "Localized lift on the protected comparison."
+      },
+      {
+        "name": "comparison-divider",
+        "value": "0 0 0 1px #243c3230",
+        "purpose": "White-divider contrast; removed during keyboard focus."
+      }
+    ],
+    "motion": [
+      {
+        "name": "primary-hover",
+        "value": "0.18s ease-out",
+        "purpose": "Primary background and border feedback."
+      },
+      {
+        "name": "processing-spinner",
+        "value": "1.2s linear infinite",
+        "purpose": "Processing activity; disabled for reduced motion."
+      },
+      {
+        "name": "center-portrait",
+        "value": "3s cubic-bezier(0.16, 1, 0.3, 1) infinite both",
+        "purpose": "24px centering loop without manual controls; pause offscreen/hidden and show a still for reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "viewport-360",
+        "value": "360px"
+      },
+      {
+        "name": "viewport-600",
+        "value": "600px"
+      },
+      {
+        "name": "viewport-900",
+        "value": "900px"
+      },
+      {
+        "name": "viewport-1000",
+        "value": "1000px"
+      },
+      {
+        "name": "viewport-1100",
+        "value": "1100px"
+      },
+      {
+        "name": "viewport-1400",
+        "value": "1400px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Generate Action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Shared primary Generate action; full width in the studio.",
+      "html": "<button type=\"button\" class=\"ds-primary ds-generate\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"ds-lucide ds-lucide-scan-face\" aria-hidden=\"true\"><path d=\"M3 7V5a2 2 0 0 1 2-2h2\"></path><path d=\"M17 3h2a2 2 0 0 1 2 2v2\"></path><path d=\"M21 17v2a2 2 0 0 1-2 2h-2\"></path><path d=\"M7 21H5a2 2 0 0 1-2-2v-2\"></path><path d=\"M8 14s1.5 2 4 2 4-2 4-2\"></path><path d=\"M9 9h.01\"></path><path d=\"M15 9h.01\"></path></svg>Generate passport photo<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"ds-lucide ds-lucide-arrow-right\" aria-hidden=\"true\"><path d=\"M5 12h14\"></path><path d=\"m12 5 7 7-7 7\"></path></svg></button>",
+      "css": "\n.ds-primary {\n  background: var(--accent);\n  border: 1px solid var(--accent);\n  color: white;\n  border-radius: 7px;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  gap: 12px;\n  font-weight: 550;\n  font-size: 16px;\n  padding: 14px 20px;\n  min-height: 58px;\n  transition:\n    background 0.18s ease-out,\n    border-color 0.18s ease-out;\n}\n.ds-primary:hover:not(:disabled) {\n  background: #2d432d;\n  border-color: #2d432d;\n}\n.ds-primary:disabled {\n  background: #dedfd9;\n  border-color: #dedfd9;\n  color: var(--muted);\n}\n.ds-generate {\n  width: 100%;\n}\n.ds-generate > svg:last-child {\n  margin-left: auto;\n}.ds-primary{font-family:var(--font-body),sans-serif;}.ds-primary:focus-visible{outline:3px solid var(--focus);outline-offset:5px}"
+    },
+    {
+      "name": "Cancel Action",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Neutral Cancel action, without a toast or confirmation.",
+      "html": "<button type=\"button\" class=\"ds-secondary\" aria-label=\"Cancel generation\">Cancel</button>",
+      "css": "\n.ds-secondary {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  gap: 8px;\n  min-height: 44px;\n  padding: 10px 14px;\n  font-size: 14px;\n  line-height: 1.5;\n  font-weight: 500;\n  color: var(--ink);\n  background: transparent;\n  border: 1px solid #879481;\n  border-radius: 7px;\n}\n.ds-secondary:hover:not(:disabled) {\n  background: #e9eee5;\n  border-color: var(--accent);\n}\n.ds-secondary:disabled {\n  color: var(--muted);\n  cursor: not-allowed;\n}.ds-secondary{font-family:var(--font-body),sans-serif;}.ds-secondary:focus-visible{outline:3px solid var(--focus);outline-offset:5px}"
+    },
+    {
+      "name": "Issuing Country",
+      "kind": "input",
+      "refersTo": "country-field",
+      "description": "Native country field with its inert chevron.",
+      "html": "<div class=\"ds-country-row\"><div class=\"ds-select-wrap\"><select class=\"ds-select\" aria-label=\"Issuing country\"><option>United States</option><option>Singapore</option></select><svg class=\"ds-select-chevron\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"/></svg></div></div>",
+      "css": "\n.ds-country-row {\n  display: flex;\n  align-items: center;\n  border: 1px solid #879481;\n  border-radius: 6px;\n  background: white;\n}\n.ds-select-wrap {\n  position: relative;\n  display: flex;\n  align-items: center;\n  flex: 1;\n  min-width: 0;\n}\n.ds-select-chevron {\n  position: absolute;\n  right: 14px;\n  pointer-events: none;\n  color: var(--ink);\n}\n.ds-select {\n  font: inherit;\n  -webkit-tap-highlight-color: transparent;\n  appearance: none;\n  width: 100%;\n  min-width: 0;\n  padding: 13px 38px 13px 14px;\n  border: 0;\n  background: transparent;\n  border-radius: 6px;\n  color: var(--ink);\n  font-size: 16px;\n}.ds-select{font-family:var(--font-body),sans-serif;}.ds-select:focus-visible{outline:3px solid var(--focus);outline-offset:5px}"
+    },
+    {
+      "name": "Header",
+      "kind": "nav",
+      "refersTo": "navigation",
+      "description": "Text wordmark only; no obsolete Photo guide navigation.",
+      "html": "<header class=\"ds-nav ds-wrap\"><a class=\"ds-brand\" href=\"#\" aria-label=\"Passport Studio home\">Passport Studio</a></header>",
+      "css": "\n\n.ds-nav {\n  height: 100px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  position: relative;\n}\n.ds-nav::after {\n  content: \"\";\n  position: absolute;\n  inset: auto 36px 0;\n  height: 1px;\n  background: var(--line);\n}\n.ds-brand {\n  display: inline-flex;\n  align-items: center;\n  font-size: 23px;\n  font-weight: 500;\n  letter-spacing: -0.02em;\n  white-space: nowrap;\n}\n.ds-nav a:hover {\n  text-decoration: underline;\n  text-underline-offset: 5px;\n}.ds-nav{font-family:var(--font-body),sans-serif;padding-inline:36px;color:var(--ink);background:var(--paper)}.ds-brand:focus-visible{outline:3px solid var(--focus);outline-offset:5px}"
+    },
+    {
+      "name": "Recoverable Error",
+      "kind": "card",
+      "refersTo": "error-alert",
+      "description": "Explicit error copy with a warm surface and keyboard focus.",
+      "html": "<div class=\"ds-error\" role=\"alert\" tabindex=\"-1\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-info\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"></circle><path d=\"M12 16v-4\"></path><path d=\"M12 8h.01\"></path></svg><div><strong>This photo needs a little attention</strong><p>Try a clear, well-lit photo with your whole head and shoulders visible.</p></div></div>",
+      "css": "\n.ds-error {\n  display: flex;\n  gap: 12px;\n  padding: 20px;\n  background: #fff0e9;\n  border: 1px solid #e4bba8;\n  border-radius: 8px;\n  font-size: 13px;\n  line-height: 1.6;\n  color: #923b26;\n}\n.ds-error > svg {\n  flex-shrink: 0;\n  margin-top: 3px;\n}\n.ds-error strong {\n  font-weight: 600;\n}\n.ds-error p {\n  margin: 4px 0 0;\n}.ds-error{font-family:var(--font-body),sans-serif;}.ds-error:focus-visible{outline:3px solid var(--focus);outline-offset:5px}"
+    },
+    {
+      "name": "Centering Diagram",
+      "kind": "custom",
+      "refersTo": "framing-guide",
+      "description": "Source-derived centered still; the application owns disclosure and motion.",
+      "html": "<figure class=\"ds-guide\" data-open=\"false\" aria-label=\"Center your face in the crop with similar space on both sides. Leave a little headroom and keep your whole head and shoulders visible.\"><span class=\"ds-label\">Leave a little headroom</span><div class=\"ds-window\" aria-hidden=\"true\"><span class=\"ds-corner ds-topLeft\"></span><span class=\"ds-corner ds-topRight\"></span><span class=\"ds-corner ds-bottomLeft\"></span><span class=\"ds-corner ds-bottomRight\"></span><span class=\"ds-headroom\"></span><span class=\"ds-centerline\"></span><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"0.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"ds-lucide ds-lucide-user-round ds-person\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"8\" r=\"5\"></circle><path d=\"M20 21a8 8 0 0 0-16 0\"></path></svg></div><figcaption class=\"ds-caption\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"ds-lucide ds-lucide-check\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"></path></svg><span>Center your face<br/>in the crop</span></figcaption></figure>",
+      "css": "\n\n.ds-guide {\n  margin: 0;\n  color: #625370;\n  text-align: center;\n}\n\n.ds-label {\n  display: block;\n  margin-bottom: 10px;\n  font-size: 12px;\n}\n\n.ds-window {\n  position: relative;\n  width: 140px;\n  height: 176px;\n  overflow: hidden;\n  border-radius: 8px;\n  background: #f5f2f9;\n}\n\n.ds-corner {\n  position: absolute;\n  z-index: 1;\n  width: 13px;\n  height: 13px;\n  border-style: solid;\n  border-color: #877497;\n}\n\n.ds-topLeft {\n  top: 10px;\n  left: 10px;\n  border-width: 1px 0 0 1px;\n}\n\n.ds-topRight {\n  top: 10px;\n  right: 10px;\n  border-width: 1px 1px 0 0;\n}\n\n.ds-bottomLeft {\n  bottom: 10px;\n  left: 10px;\n  border-width: 0 0 1px 1px;\n}\n\n.ds-bottomRight {\n  bottom: 10px;\n  right: 10px;\n  border-width: 0 1px 1px 0;\n}\n\n.ds-headroom {\n  position: absolute;\n  top: 32px;\n  right: 20px;\n  left: 20px;\n  border-top: 1px dashed #b9a9c5;\n}\n\n.ds-centerline {\n  position: absolute;\n  z-index: 1;\n  top: 14px;\n  bottom: 14px;\n  left: 50%;\n  border-left: 1px dashed #b9a9c5;\n}\n\n.ds-person {\n  position: absolute;\n  bottom: -12px;\n  left: 50%;\n  width: 151px;\n  height: 165px;\n  transform: translateX(-50%);\n  color: #9d8cab;\n  fill: #e0d6e9;\n}\n\n.ds-caption {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  gap: 4px;\n  margin-top: 10px;\n  font-size: 12px;\n  line-height: 1.5;\n}\n\n.ds-caption svg {\n  flex-shrink: 0;\n}.ds-guide{font-family:var(--font-body),sans-serif;}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Open Visitor's Desk",
+    "overview": "Passport Studio is an approachable, quietly practical place to prepare a photo. Off-white space, softened green lettering, thin sage rules, and humanist sans typography keep the interface open and readable. Controls feel direct and restrained rather than ornamental.\n\nThe small lilac centering diagram supplies warmth inside optional result help.\nThe former large preparation panel was removed. The rejected Sign Band direction\nand large dark or saturated green fields are not part of this system.",
+    "keyCharacteristics": [
+      "Open off-white ground with muted green text and a concentrated primary action.",
+      "Clear sans-serif hierarchy, generous spacing, and thin sage boundaries.",
+      "Optional inline instruction with a CSS/Lucide head-and-shoulders diagram.",
+      "Flat structural surfaces with localized depth on the protected comparison.",
+      "Subtle state feedback, visible keyboard focus, and reduced-motion support."
+    ],
+    "rules": [
+      {
+        "name": "The Mild Field Rule",
+        "body": "Keep broad surfaces off-white, pale sage, or gentle lilac; reserve dark green for lettering and the primary action.",
+        "section": "colors"
+      },
+      {
+        "name": "The Local Depth Rule",
+        "body": "Keep ambient lift confined to the comparison; use tone and fine boundaries elsewhere.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** keep the off-white ground, sage hierarchy, and small lilac diagram.",
+      "**Do** use the implemented native controls, visible focus treatments, and reduced-motion behavior.",
+      "**Do** preserve the comparison's original source, images, interaction, dimensions, and responsive placement.",
+      "**Do** retain compact preparation tips, optional framing help, inline ICA examples, and the separate acceptance warning.",
+      "**Do** record asset origins in prose and treat tonal ramps as preview metadata rather than new UI colors."
+    ],
+    "donts": [
+      "**Don't** reintroduce the rejected Sign Band or large dark or saturated green fields.",
+      "**Don't** treat the approved mockup as pixel-exact authority over the user's retained originals.",
+      "**Don't** modify protected rasters or embed provenance metadata into them.",
+      "**Don't** reintroduce the large preparation panel, dead Photo guide link, or manual centering-animation controls.",
+      "**Don't** add enclosing upload cards, generic chip systems, or decorative entrance motion to this documented homepage.",
+      "**Don't** imply official acceptance, automatic upload on selection, or unverified privacy guarantees."
+    ]
+  }
+}

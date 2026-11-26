@@ -8,6 +8,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from backend_test_utils import request_app
+
 
 class AppImportTests(unittest.TestCase):
     def test_app_import_does_not_import_native_inference_runtimes(self):
@@ -83,28 +85,14 @@ class AppLifecycleTests(unittest.IsolatedAsyncioTestCase):
     async def request(self, method, path, headers=None):
         import main
 
-        sent = []
-
-        async def receive():
-            return {"type": "http.request", "body": b"", "more_body": False}
-
-        async def send(message):
-            sent.append(message)
-
-        scope = {
-            "type": "http",
-            "http_version": "1.1",
-            "scheme": "http",
-            "method": method,
-            "path": path,
-            "root_path": "",
-            "query_string": b"",
-            "headers": headers or [],
-            "server": ("test", 80),
-            "client": ("test", 123),
-        }
-        await main.create_app()(scope, receive, send)
-        return sent
+        messages, _ = await request_app(
+            main.create_app(),
+            method=method,
+            path=path,
+            headers=headers or (),
+            query=b"",
+        )
+        return messages
 
     async def test_health_route_bypasses_upload_admission(self):
         with patch("request_limits.processing_pool.try_acquire") as acquire:

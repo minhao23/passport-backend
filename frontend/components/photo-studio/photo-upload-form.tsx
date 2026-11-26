@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
-import {
-  ArrowRight,
-  ChevronDown,
-  ImagePlus,
-  LoaderCircle,
-  ScanFace,
-} from "lucide-react";
+import { useState, type RefObject } from "react";
+import { ArrowRight, ChevronDown, ImagePlus, LoaderCircle } from "lucide-react";
 import { ACCEPTED_TYPES, countries } from "@/lib/countries";
+import {
+  CancelPhotoButton,
+  GeneratePhotoButton,
+  useProcessingActions,
+} from "./photo-processing-actions";
+import "./photo-upload-form.css";
 
 type PhotoUploadFormProps = {
   country: string;
@@ -38,15 +38,7 @@ export default function PhotoUploadForm({
   onCancel,
 }: PhotoUploadFormProps) {
   const [dragging, setDragging] = useState(false);
-  const primaryAction = useRef<HTMLButtonElement>(null);
-  const focusAction = useRef(false);
-
-  useEffect(() => {
-    if (focusAction.current) {
-      primaryAction.current?.focus({ preventScroll: true });
-      focusAction.current = false;
-    }
-  }, [loading]);
+  const actions = useProcessingActions(loading, onGenerate, onCancel);
 
   return (
     <div
@@ -131,35 +123,19 @@ export default function PhotoUploadForm({
                 </p>
               </div>
             </div>
-            <button
-              ref={primaryAction}
-              className="secondary"
-              type="button"
-              aria-label="Cancel generation"
-              onClick={() => {
-                focusAction.current = true;
-                onCancel();
-              }}
-            >
-              Cancel
-            </button>
+            <CancelPhotoButton
+              ref={actions.primaryAction}
+              onClick={actions.cancel}
+            />
           </div>
         ) : file ? (
-          <button
-            ref={primaryAction}
-            className="primary generate"
-            type="button"
-            onClick={() => {
-              focusAction.current = true;
-              void onGenerate();
-            }}
-          >
-            <ScanFace size={20} /> Generate passport photo{" "}
-            <ArrowRight size={18} />
-          </button>
+          <GeneratePhotoButton
+            ref={actions.primaryAction}
+            onClick={actions.generate}
+          />
         ) : (
           <button
-            ref={primaryAction}
+            ref={actions.primaryAction}
             type="button"
             className="primary upload-button"
             onClick={onChoosePhoto}

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
+  ChevronDown,
   Download,
   ImagePlus,
   LoaderCircle,
@@ -10,7 +11,12 @@ import {
 } from "lucide-react";
 import { passportPhotoFilename } from "@/lib/photo-download";
 import PhotoFramingHelp from "./photo-framing-help";
-import PhotoPreparationTips from "./photo-preparation-tips";
+import {
+  CancelPhotoButton,
+  GeneratePhotoButton,
+  useProcessingActions,
+} from "./photo-processing-actions";
+import "./photo-workspace.css";
 
 type PhotoWorkspaceProps = {
   country: string;
@@ -41,9 +47,7 @@ export default function PhotoWorkspace({
 }: PhotoWorkspaceProps) {
   const workspace = useRef<HTMLElement>(null);
   const outputHeading = useRef<HTMLHeadingElement>(null);
-  const primaryAction = useRef<HTMLButtonElement>(null);
-  const mobileCancel = useRef<HTMLButtonElement>(null);
-  const focusAction = useRef(false);
+  const actions = useProcessingActions(loading, onGenerate, onCancel);
   const [viewedOriginal, setViewedOriginal] = useState("");
   const showingOriginal = !result || viewedOriginal === result;
   const status = result
@@ -51,18 +55,6 @@ export default function PhotoWorkspace({
     : loading
       ? "Creating your photo"
       : "Photo selected";
-
-  useEffect(() => {
-    // Follow the action swap only when it was initiated in this workspace.
-    if (focusAction.current) {
-      const action =
-        loading && window.matchMedia("(max-width: 600px)").matches
-          ? mobileCancel.current
-          : primaryAction.current;
-      action?.focus({ preventScroll: true });
-      focusAction.current = false;
-    }
-  }, [loading]);
 
   useEffect(() => {
     if (result) outputHeading.current?.focus();
@@ -172,7 +164,7 @@ export default function PhotoWorkspace({
           />
           <figure className="output-photo">
             <div
-              className={`result-frame ${result ? "complete" : ""}`}
+              className="result-frame"
               style={{
                 aspectRatio: `${width}/${height}`,
                 maxWidth: `calc(var(--photo-preview-height) * ${width / height})`,
@@ -199,24 +191,17 @@ export default function PhotoWorkspace({
                   : "Your result goes here"}
             </figcaption>
             {loading && (
-              <button
-                ref={primaryAction}
+              <CancelPhotoButton
+                ref={actions.primaryAction}
                 className="secondary workspace-cancel"
-                type="button"
-                aria-label="Cancel generation"
-                onClick={() => {
-                  focusAction.current = true;
-                  onCancel();
-                }}
-              >
-                Cancel
-              </button>
+                onClick={actions.cancel}
+              />
             )}
           </figure>
         </div>
         <div className={`output-details${result ? " has-result" : ""}`}>
           <div className="output-summary">
-            <h3 className="preview-country">{country}</h3>
+            <h3>{country}</h3>
             <dl>
               <div>
                 <dt className="sr-only">Photo size</dt>
@@ -237,22 +222,11 @@ export default function PhotoWorkspace({
               </a>
             ) : (
               !loading && (
-                <button
-                  ref={primaryAction}
-                  className="primary generate"
-                  type="button"
-                  onClick={() => {
-                    focusAction.current = true;
-                    void onGenerate();
-                  }}
-                >
-                  <ScanFace size={20} aria-hidden="true" />
-                  <span className="desktop-generate-label">
-                    Generate passport photo
-                  </span>
-                  <span className="mobile-generate-label">Generate photo</span>
-                  <ArrowRight size={18} aria-hidden="true" />
-                </button>
+                <GeneratePhotoButton
+                  ref={actions.primaryAction}
+                  onClick={actions.generate}
+                  mobileLabel
+                />
               )
             )}
             {loading && (
@@ -261,18 +235,10 @@ export default function PhotoWorkspace({
                   <LoaderCircle size={18} className="spin" aria-hidden="true" />
                   Creating your photo
                 </span>
-                <button
-                  ref={mobileCancel}
-                  className="secondary"
-                  type="button"
-                  aria-label="Cancel generation"
-                  onClick={() => {
-                    focusAction.current = true;
-                    onCancel();
-                  }}
-                >
-                  Cancel
-                </button>
+                <CancelPhotoButton
+                  ref={actions.mobileCancel}
+                  onClick={actions.cancel}
+                />
               </div>
             )}
           </div>
@@ -284,14 +250,50 @@ export default function PhotoWorkspace({
               <PhotoFramingHelp key={result} />
             </>
           )}
-          {!result && (
-            <>
-              <PhotoPreparationTips country={country} />
-              <PhotoPreparationTips country={country} compact />
-            </>
-          )}
+          {!result && <PhotoPreparationTips country={country} />}
         </div>
       </div>
     </section>
+  );
+}
+
+function PhotoPreparationTips({ country }: { country: string }) {
+  const framingTip =
+    country === "United Kingdom"
+      ? "For UK online applications, use an uncropped original showing your head, shoulders and upper body."
+      : "Crop just above the armpits. Keep your full head, shoulders and a little headroom.";
+  const tips = (
+    <ul>
+      <li>{framingTip}</li>
+      <li>
+        Face forward at eye level, with eyes open and mouth closed. Avoid
+        close-up selfies.
+      </li>
+      <li>
+        Use even lighting and a sharp photo. Skip shadows and beauty filters.
+      </li>
+      <li>
+        No headwear or sunglasses. Religious or medical coverings may be
+        allowed; check your country&apos;s rules.
+      </li>
+    </ul>
+  );
+
+  return (
+    <>
+      <section
+        className="workspace-tips"
+        aria-labelledby="workspace-tips-title"
+      >
+        <h4 id="workspace-tips-title">Photo tips</h4>
+        {tips}
+      </section>
+      <details className="mobile-photo-tips">
+        <summary>
+          Photo tips <ChevronDown size={16} aria-hidden="true" />
+        </summary>
+        {tips}
+      </details>
+    </>
   );
 }

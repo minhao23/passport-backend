@@ -7,13 +7,10 @@
 }
 
 .examples > summary {
-  margin-left: 27px;
-}
-
-.examples > summary {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: 27px;
   width: fit-content;
   min-height: 44px;
   cursor: pointer;

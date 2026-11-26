@@ -2,10 +2,10 @@
 version: 1
 slug: "mponents-photo-studio-photo-workspace-tsx-96682546"
 primary_target: "frontend/components/photo-studio/photo-workspace.tsx"
-related_targets: ["frontend/components/photo-studio/photo-crop-modal.tsx", "frontend/components/photo-studio/photo-upload-form.tsx", "frontend/components/photo-studio/photo-preparation-tips.tsx"]
+related_targets: ["frontend/components/photo-studio/photo-crop-modal.tsx", "frontend/components/photo-studio/photo-upload-form.tsx", "frontend/components/photo-studio/photo-framing-help.tsx", "frontend/components/photo-studio/photo-processing-actions.tsx", "frontend/components/photo-studio/use-photo-studio.ts"]
 ---
 
-# Photo crop editor
+# Photo Workspace and Crop Editor
 
 Mode: Operate. Extend the existing photo workspace without changing its identity.
 The confirmed crop becomes the generation input; preserve the original locally.
@@ -34,7 +34,8 @@ without obscuring the image.
 
 FORM: Narrow extension of the established workspace. No concept roll applies.
 The signature interaction is directly resizing and moving a rectangular crop.
-Motion is limited to the existing brief control feedback.
+Editor motion is limited to brief control feedback; result-help motion is
+documented below.
 
 ## Workspace actions
 
@@ -46,8 +47,9 @@ double-click crop interaction. Change photo stays content-width beneath its imag
 
 Country and dimensions form one compact summary above the primary action, with
 the size label retained for assistive technology. On stacked tablets, place the
-summary beside the action and use two columns for the tips; phones keep a linear
-photo, summary, action, tips order. No guidance is hidden to make the layout fit.
+summary beside the action and use two columns for the tips. Phones show one
+Original/Result preview at a time and keep a linear photo, summary, action,
+initially closed Photo tips order. The same advice is available at every width.
 
 After cropping, Generate passport photo is available in the country/size panel;
 it invokes the same request handler as the hero form. Successful generation
@@ -63,7 +65,8 @@ Keep the selected photo, crop, and country; restore action focus locally without
 scrolling to the other section. Do not show the generate-above instruction or
 processor-send explanation in the workspace.
 
-Photo tips appear beneath Generate as a plain, readable four-item list, without
+Photo tips are owned by `photo-workspace.tsx` and appear beneath Generate as a
+plain, readable four-item list, without
 a card or live announcement. Cover upper-body framing, eye-level camera position
 and expression, clear even lighting, and headwear/sunglasses with religious or
 medical exceptions. The armpit crop is framing guidance, not an official size
@@ -104,4 +107,17 @@ Use CSS and browser animation APIs, with no new dependency or raster asset.
 Future mockups are runnable HTML, not raster boards. Remove spent mockup
 artifacts after their approved design has been implemented and verified.
 
-FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+## Implementation and Verification
+
+Keep state in `components/photo-studio/use-photo-studio.ts` and shared
+Generate/Cancel markup and focus handling in `photo-processing-actions.tsx`.
+Feedback belongs to `photo-studio.tsx`; preparation tips belong to the workspace.
+Keep the crop editor and animated help separate because they own complex
+interactions. The editor is dynamically loaded on demand.
+
+Preserve original/cropped file separation, stale-request guards, quiet
+cancellation, object-URL cleanup, manual/automatic download, and keyboard focus.
+Use the complete frontend tests plus production-browser checks for affected
+desktop/phone states. Current visual tokens live in `frontend/DESIGN.md`; record
+shipping asset origins in documentation, without modifying protected rasters.
+Local Chrome checks do not establish physical-device or Safari compatibility.

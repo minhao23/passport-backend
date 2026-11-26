@@ -1,13 +1,13 @@
 ---
 version: 1
 slug: "components-photo-guide-tsx"
-primary_target: "components/photo-guide.tsx"
-related_targets: ["components/photo-guide.module.css", "components/site-footer.tsx"]
+primary_target: "frontend/components/passport-page.tsx"
+related_targets: ["frontend/components/passport-page.module.css", "frontend/app/page.tsx"]
 ---
 
 # Submission Photo Examples
 
-Mode: Read. Extend the existing submission guidance only. Keep the studio,
+Mode: Read. Preserve the existing submission guidance. Keep the studio,
 protected comparison, and completed-result framing help unchanged.
 
 ## Direction Contract
@@ -35,4 +35,16 @@ phone widths without cropping. Provenance: user-supplied local JPEG, identified
 by the user as a Singapore ICA reference. Keep only sample_rules.jpg;
 the redundant sample_rules.jpeg has been removed.
 
-FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+## Implementation and Verification
+
+The static header, submission warning/examples, and footer share the
+`components/passport-page.tsx` Server Component. `app/page.tsx` remains a small
+entry point, and examples styling stays in `passport-page.module.css`.
+The historical brief slug remains stable after that consolidation.
+
+Regression checks render the actual combined page with only the interactive
+studio stubbed. Verify warning/examples/footer order, initially closed native
+disclosure, exact attribution, JPG dimensions, no image links, and the single
+contact link. Production-browser checks cover keyboard/touch toggling, centered
+responsive sizing, and asset parity. Keep temporary captures outside the repo;
+future mockups are runnable HTML.
