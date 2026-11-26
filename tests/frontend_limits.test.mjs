@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createServer, request as httpRequest } from "node:http";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
@@ -123,6 +124,22 @@ test("homepage retains the studio and submission note without the preparation gu
   assert.match(html, /<footer/);
   assert.match(html, /Skip to photo studio/);
   assert.match(html, /Upload your photo/);
+});
+
+test("homepage advertises the supplied PNG as its browser icon", async () => {
+  const response = await fetch(new URL("/", url));
+  const html = await response.text();
+  const icon = html.match(/<link\b[^>]*rel="icon"[^>]*href="([^"]+)"[^>]*>/);
+  assert.ok(icon, "The homepage must include a browser icon link");
+  assert.match(icon[0], /type="image\/png"/);
+  assert.match(icon[0], /sizes="512x512"/);
+  const image = await fetch(new URL(icon[1].replace(/&amp;/g, "&"), url));
+  assert.equal(image.status, 200);
+  assert.match(image.headers.get("content-type"), /image\/png/);
+  assert.deepEqual(
+    Buffer.from(await image.arrayBuffer()),
+    await readFile(new URL("../frontend/app/icon.png", import.meta.url)),
+  );
 });
 
 test("valid upload and exact 10 MiB file reach upstream", async () => {
