@@ -87,23 +87,27 @@ and `frontend/DESIGN.md`.
 ### Backend structure
 
 `src/main.py` only configures the app, middleware, and startup lifespan.
-`src/api/` contains the health and photo routes, plus the shared public error
+`src/api.py` contains the health and photo routes, plus the shared public error
 responses. `src/request_limits.py` bounds uploads before multipart parsing.
 
 `src/services/image_processor.py` composes the image pipeline. Its stages live
 in `utils/image_loading.py`, `services/segmentation.py`, `services/head_framing.py`,
 `services/photo_framing.py`, and `services/photo_composition.py`.
-`services/model_runtime.py` owns the reusable segmentation models and detector
-lock; `services/head_framing.py` reuses the separate face detector under its own
-lock. Native inference imports are deferred until startup or processing.
+`services/model_runtime.py` owns reusable segmentation models, the detector lock,
+and the CPU ONNX session options. `services/head_framing.py` reuses the separate
+face detector under its own lock. Native inference imports are deferred until
+startup or processing; `services/modnet_session.py` stays standalone for Docker's
+cached model-download layer.
 `services/photo_requests.py` manages queue waits, disconnects,
 and cancellation, while `services/processing_jobs.py` bounds admission and
-native work. Shared limits, country sizes, and image-header checks remain in
-`src/utils/`; public error classes remain in `src/errors/`.
+native work. Image-header preflight stays with its decoder in
+`utils/image_loading.py`. Shared limits and country sizes remain in `src/utils/`;
+public error classes remain in `src/errors/`, with no legacy import shim.
 
 The current pipeline uses the trained YOLO checkpoint, YuNet face guidance, and
-MODNet portrait matting through `rembg`. The Uvicorn target remains `main:app`
-with `--app-dir src`. The frontend refactor does not alter this pipeline.
+MODNet portrait matting through `rembg`. Structural consolidation preserves the
+models, formulas, limits, and HTTP contracts. The Uvicorn target remains `main:app`
+with `--app-dir src`.
 
 Python formatting and linting use the pinned Ruff development dependency:
 
@@ -330,6 +334,13 @@ on temporary localhost ports; it checks multipart limits, busy/error mapping,
 and cancellation without sending photos to an external service. Its stalled
 upload regression deliberately takes 60 seconds to exercise the real deadline.
 
+Backend suites share image encoding and the ASGI upload/request harness in
+`tests/backend_test_utils.py`. Health/CORS and multipart tests use the same
+transport fixture, while inference stubs remain suite-owned. Head/face guidance
+and framing/export checks share `tests/test_photo_composition.py`; model-session
+and native-probe checks remain separate. Shared fixtures reduce repeated setup
+without removing named regression scenarios.
+
 ### Low-memory processing
 
 The default pipeline keeps `rembg`, with a custom `ModnetPortraitSession` using
@@ -358,7 +369,7 @@ partially transparent edge pixels. Confident foreground pixels (alpha >= 250)
 retain their original RGB values. Subject bounds use row/column occupancy, and
 generated Pillow images are explicitly closed. JPEG dimensions remain unchanged.
 
-The runtime profile in `src/services/rembg_runtime.py` disables ONNX Runtime's
+The runtime profile in `src/services/model_runtime.py` disables ONNX Runtime's
 retained CPU memory arena, keeping memory-pattern planning and graph optimization
 at their defaults. Execution is sequential with one intra/inter-op thread.
 The model remains FP32. Allocations may be slower without the retained arena,

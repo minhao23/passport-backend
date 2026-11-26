@@ -12,11 +12,10 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import cv2
 import numpy as np
+from backend_test_utils import photo_bytes, request_app
 from fastapi import UploadFile
 from PIL import Image
 from starlette.datastructures import Headers
-
-from backend_test_utils import photo_bytes, request_app
 
 # Unit tests exercise orchestration without importing native inference runtimes.
 inference_stubs = patch.dict(
@@ -164,10 +163,9 @@ class WebPHeaderTests(unittest.TestCase):
         for mode in ("RGB", "RGBA"):
             for lossless in (False, True):
                 with self.subTest(mode=mode, lossless=lossless):
-                    with Image.new(mode, (32, 48)) as image:
-                        output = io.BytesIO()
-                        image.save(output, format="WEBP", lossless=lossless)
-                        data = output.getvalue()
+                    data = photo_bytes(
+                        (32, 48), format="WEBP", mode=mode, color=0, lossless=lossless
+                    )
                     check_webp_header(data)
                     self.assertEqual(
                         cv2.imdecode(
@@ -560,7 +558,9 @@ class ReducedMemoryTests(unittest.TestCase):
                 patch("rembg.remove") as remove,
             ):
                 with self.assertRaises(error):
-                    image_processor.create_passport_photo(photo_bytes(), "United States")
+                    image_processor.create_passport_photo(
+                        photo_bytes(), "United States"
+                    )
                 remove.assert_not_called()
 
     def test_subject_bounds_preserve_soft_pixels_without_coordinate_grid(self):
@@ -734,7 +734,9 @@ class ReducedMemoryTests(unittest.TestCase):
                 ) as kernel,
                 patch.object(cv2, "GaussianBlur", wraps=cv2.GaussianBlur) as blur,
             ):
-                image_processor.create_passport_photo(photo_bytes(size), "United States")
+                image_processor.create_passport_photo(
+                    photo_bytes(size), "United States"
+                )
             kernel.assert_called_once_with(
                 cv2.MORPH_ELLIPSE, (expected_kernel, expected_kernel)
             )
@@ -772,7 +774,9 @@ class ReducedMemoryTests(unittest.TestCase):
                 ),
             ):
                 with self.assertRaises(error):
-                    image_processor.create_passport_photo(photo_bytes(), "United States")
+                    image_processor.create_passport_photo(
+                        photo_bytes(), "United States"
+                    )
 
     def test_rejected_framing_closes_images_without_export(self):
         inset_alpha = np.zeros((400, 600), dtype=np.uint8)
@@ -807,8 +811,16 @@ class ReducedMemoryTests(unittest.TestCase):
                         image.getpixel((0, 0))
 
 
-class DisconnectTests(unittest.IsolatedAsyncioTestCase):
+class PhotoRequestTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        self.processor = self.enterContext(
+            patch("api.create_passport_photo", return_value=b"jpeg")
+        )
+
+
+class DisconnectTests(PhotoRequestTests):
+    def setUp(self):
+        super().setUp()
         self.request = SimpleNamespace(is_disconnected=AsyncMock(return_value=False))
 
     def upload(self):
@@ -823,10 +835,9 @@ class DisconnectTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_already_disconnected_does_not_start_worker(self):
         self.request.is_disconnected.return_value = True
-        with patch("api.create_passport_photo") as process:
-            response = await self.process()
+        response = await self.process()
         self.assertEqual(response.status_code, 499)
-        process.assert_not_called()
+        self.processor.assert_not_called()
 
     async def test_disconnect_reaches_running_worker(self):
         started = Event()
@@ -843,23 +854,20 @@ class DisconnectTests(unittest.IsolatedAsyncioTestCase):
             return started.is_set()
 
         self.request.is_disconnected = disconnected
-        with patch("api.create_passport_photo", side_effect=process):
-            response = await self.process()
+        self.processor.side_effect = process
+        response = await self.process()
         self.assertEqual(response.status_code, 499)
         self.assertTrue(observed.is_set())
 
     async def test_success_and_photo_errors_keep_existing_contract(self):
-        with patch("api.create_passport_photo", return_value=b"jpeg"):
-            response = await self.process()
+        response = await self.process()
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.media_type, "image/jpeg")
         self.assertEqual(response.body, b"jpeg")
 
         for error in (InvalidPhotoError(), SubjectFramingError()):
-            with (
-                self.subTest(error=type(error).__name__),
-                patch("api.create_passport_photo", side_effect=error),
-            ):
+            with self.subTest(error=type(error).__name__):
+                self.processor.side_effect = error
                 response = await self.process()
             self.assertEqual(response.status_code, 422)
             self.assertEqual(
@@ -870,13 +878,8 @@ class DisconnectTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unexpected_worker_errors_are_logged_without_exposing_details(self):
         before = set(asyncio.all_tasks())
-        with (
-            patch(
-                "api.create_passport_photo",
-                side_effect=RuntimeError("private model path"),
-            ),
-            patch("api.logger.exception") as log,
-        ):
+        self.processor.side_effect = RuntimeError("private model path")
+        with patch("api.logger.exception") as log:
             response = await self.process()
         self.assertEqual(response.status_code, 500)
         self.assertEqual(json.loads(response.body)["code"], "INTERNAL_SERVER_ERROR")
@@ -890,26 +893,23 @@ class DisconnectTests(unittest.IsolatedAsyncioTestCase):
         before = set(asyncio.all_tasks())
         with (
             patch.object(upload, "read", side_effect=OSError("temporary file failed")),
-            patch("api.create_passport_photo") as process,
             patch("api.logger.exception"),
         ):
             response = await self.process(upload=upload)
         self.assertEqual(response.status_code, 500)
         self.assertEqual(set(asyncio.all_tasks()), before)
-        process.assert_not_called()
+        self.processor.assert_not_called()
         with reserved_slots() as permits:
             self.assertTrue(all(permits))
 
     async def test_invalid_country_does_not_start_worker(self):
-        with patch("api.create_passport_photo") as process:
-            response = await self.process("invalid")
+        response = await self.process("invalid")
         self.assertEqual(response.status_code, 400)
-        process.assert_not_called()
+        self.processor.assert_not_called()
 
     async def test_worker_finishes_without_leaking_disconnect_watcher(self):
         before = set(asyncio.all_tasks())
-        with patch("api.create_passport_photo", return_value=b"jpeg"):
-            await self.process()
+        await self.process()
         self.assertEqual(set(asyncio.all_tasks()), before)
 
     async def test_handler_cancellation_signals_worker(self):
@@ -922,16 +922,16 @@ class DisconnectTests(unittest.IsolatedAsyncioTestCase):
                 stopped.set()
             return b"discarded"
 
-        with patch("api.create_passport_photo", side_effect=process):
-            task = asyncio.create_task(self.process())
-            self.assertTrue(await asyncio.to_thread(started.wait, 2))
-            task.cancel()
-            with self.assertRaises(asyncio.CancelledError):
-                await task
-            self.assertTrue(await asyncio.to_thread(stopped.wait, 2))
+        self.processor.side_effect = process
+        task = asyncio.create_task(self.process())
+        self.assertTrue(await asyncio.to_thread(started.wait, 2))
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        self.assertTrue(await asyncio.to_thread(stopped.wait, 2))
 
 
-class UploadBoundaryTests(unittest.IsolatedAsyncioTestCase):
+class UploadBoundaryTests(PhotoRequestTests):
     def multipart(self, data=b"photo", content_type="image/png"):
         return (
             b'--boundary\r\nContent-Disposition: form-data; name="file"; '
@@ -949,7 +949,10 @@ class UploadBoundaryTests(unittest.IsolatedAsyncioTestCase):
         if declared_length is not None:
             headers.append((b"content-length", str(declared_length).encode()))
         sent, read = await request_app(
-            app, body=body, headers=headers, receive_delay=receive_delay,
+            app,
+            body=body,
+            headers=headers,
+            receive_delay=receive_delay,
             disconnect=disconnect,
         )
         start = next(
@@ -963,30 +966,27 @@ class UploadBoundaryTests(unittest.IsolatedAsyncioTestCase):
         return start["status"], payload, dict(start["headers"]), read
 
     async def test_declared_oversize_rejected_without_reading(self):
-        with patch("api.create_passport_photo") as process:
-            status, body, _, read = await self.request(b"unused", MAX_REQUEST_BYTES + 1)
+        status, body, _, read = await self.request(b"unused", MAX_REQUEST_BYTES + 1)
         self.assertEqual(status, 413)
         self.assertEqual(json.loads(body)["code"], "PHOTO_ISSUE")
         self.assertEqual(read, 0)
-        process.assert_not_called()
+        self.processor.assert_not_called()
 
     async def test_streamed_oversize_and_false_length_are_rejected(self):
         body = self.multipart(b"x" * (MAX_REQUEST_BYTES + 1))
         for declared in (None, 1):
-            with patch("api.create_passport_photo") as process:
-                status, payload, _, read = await self.request(body, declared)
+            status, payload, _, read = await self.request(body, declared)
             self.assertEqual(status, 413)
             self.assertEqual(json.loads(payload)["code"], "PHOTO_ISSUE")
             self.assertLessEqual(read, MAX_REQUEST_BYTES + 64 * 1024)
-            process.assert_not_called()
+            self.processor.assert_not_called()
 
     async def test_file_limit_below_aggregate_limit(self):
-        with patch("api.create_passport_photo") as process:
-            status, _, _, _ = await self.request(
-                self.multipart(b"x" * (MAX_FILE_BYTES + 1))
-            )
+        status, _, _, _ = await self.request(
+            self.multipart(b"x" * (MAX_FILE_BYTES + 1))
+        )
         self.assertEqual(status, 413)
-        process.assert_not_called()
+        self.processor.assert_not_called()
 
     async def test_busy_rejected_before_body_read(self):
         with reserved_slots() as permits:
@@ -999,24 +999,20 @@ class UploadBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_allowed_type_and_exact_limit_pass(self):
         body = self.multipart(b"x" * MAX_FILE_BYTES)
-        with patch("api.create_passport_photo", return_value=b"jpeg") as process:
-            status, _, headers, _ = await self.request(body, len(body))
+        status, _, headers, _ = await self.request(body, len(body))
         self.assertEqual(status, 200)
         self.assertEqual(headers[b"cache-control"], b"no-store")
-        self.assertEqual(len(process.call_args.args[0]), MAX_FILE_BYTES)
+        self.assertEqual(len(self.processor.call_args.args[0]), MAX_FILE_BYTES)
 
     async def test_mime_rejection_releases_admission(self):
         status, _, _, _ = await self.request(self.multipart(content_type="image/tiff"))
         self.assertEqual(status, 400)
-        with patch("api.create_passport_photo", return_value=b"jpeg"):
-            status, _, _, _ = await self.request(self.multipart())
+        status, _, _, _ = await self.request(self.multipart())
         self.assertEqual(status, 200)
 
     async def test_no_detection_contract(self):
-        with patch(
-            "api.create_passport_photo", side_effect=PersonNotDetectedError()
-        ):
-            status, body, _, _ = await self.request(self.multipart())
+        self.processor.side_effect = PersonNotDetectedError()
+        status, body, _, _ = await self.request(self.multipart())
         self.assertEqual(status, 422)
         self.assertEqual(json.loads(body)["code"], "PERSON_NOT_DETECTED")
 
@@ -1045,10 +1041,8 @@ class UploadBoundaryTests(unittest.IsolatedAsyncioTestCase):
             time.sleep(0.05)
             return b"jpeg"
 
-        with (
-            patch("request_limits.MAX_UPLOAD_SECONDS", 0.01),
-            patch("api.create_passport_photo", side_effect=process),
-        ):
+        self.processor.side_effect = process
+        with patch("request_limits.MAX_UPLOAD_SECONDS", 0.01):
             status, _, _, _ = await self.request(self.multipart())
         self.assertEqual(status, 200)
 
@@ -1083,8 +1077,8 @@ class UploadBoundaryTests(unittest.IsolatedAsyncioTestCase):
                     raise AssertionError("Active job was not released")
             return b"jpeg"
 
+        self.processor.side_effect = process
         with (
-            patch("api.create_passport_photo", side_effect=process),
             patch.object(processing_pool, "start_waiters", side_effect=notify_waiting),
             patch.object(StarletteUploadFile, "read", record_read),
         ):
@@ -1138,10 +1132,7 @@ class UploadBoundaryTests(unittest.IsolatedAsyncioTestCase):
             if processing_pool.waiting:
                 queued.set()
 
-        with (
-            patch("api.create_passport_photo") as process,
-            patch.object(processing_pool, "start_waiters", side_effect=notify_waiting),
-        ):
+        with patch.object(processing_pool, "start_waiters", side_effect=notify_waiting):
             task = asyncio.create_task(
                 self.request(self.multipart(), disconnect=disconnect)
             )
@@ -1152,7 +1143,7 @@ class UploadBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(response[0], 499)
                 self.assertEqual(len(processing_pool.waiting), 0)
                 self.assertEqual(processing_pool.active, MAX_ACTIVE_JOBS)
-                process.assert_not_called()
+                self.processor.assert_not_called()
             finally:
                 task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
@@ -1162,15 +1153,12 @@ class UploadBoundaryTests(unittest.IsolatedAsyncioTestCase):
     async def test_queue_timeout_releases_waiting_slot_without_processing(self):
         active = await self.occupy_workers()
         try:
-            with (
-                patch("services.photo_requests.MAX_QUEUE_WAIT_SECONDS", 0.01),
-                patch("api.create_passport_photo") as process,
-            ):
+            with patch("services.photo_requests.MAX_QUEUE_WAIT_SECONDS", 0.01):
                 status, payload, _, _ = await self.request(self.multipart())
             self.assertEqual(status, 503)
             self.assertIn("waited too long", json.loads(payload)["detail"])
             self.assertEqual(len(processing_pool.waiting), 0)
-            process.assert_not_called()
+            self.processor.assert_not_called()
             with reserved_slots(MAX_WAITING_JOBS) as replacements:
                 self.assertTrue(all(replacements))
         finally:

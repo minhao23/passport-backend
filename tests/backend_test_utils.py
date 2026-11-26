@@ -6,10 +6,12 @@ import io
 from PIL import Image
 
 
-def photo_bytes(size=(128, 96), format="PNG", mode="RGB", color=(25, 65, 105)):
+def photo_bytes(
+    size=(128, 96), format="PNG", mode="RGB", color=(25, 65, 105), **options
+):
     with Image.new(mode, size, color) as image:
         output = io.BytesIO()
-        image.save(output, format=format)
+        image.save(output, format=format, **options)
         return output.getvalue()
 
 

@@ -86,7 +86,11 @@ class AppLifecycleTests(unittest.IsolatedAsyncioTestCase):
         import main
 
         messages, _ = await request_app(
-            main.create_app(), method=method, path=path, headers=headers or (), query=b""
+            main.create_app(),
+            method=method,
+            path=path,
+            headers=headers or (),
+            query=b"",
         )
         return messages
 

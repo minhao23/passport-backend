@@ -1,4 +1,4 @@
-"""FastAPI application setup; route and processing logic live in their packages."""
+"""FastAPI application setup; routes and processing live in their own modules."""
 
 import logging
 from collections.abc import AsyncIterator
