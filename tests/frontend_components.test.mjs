@@ -219,6 +219,8 @@ test("completed results order download, rules and collapsed framing help", () =>
         html,
         [
           /Download JPEG/,
+          /<a href="blob:result" download="passport-singapore\.jpg" class="primary download">/,
+          /<img src="blob:result" alt="Generated passport photo for Singapore"/,
           /class="output-details has-result"/,
           /aria-label="Framing tips" hidden=""/,
           /aria-expanded="false"/,

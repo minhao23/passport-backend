@@ -216,8 +216,9 @@ The conditional workspace uses `minmax(0, 1.6fr) minmax(0, 1fr)` and stacks at 9
 Country and dimensions share a compact summary, followed by Generate or Download JPEG and the preparation tips or result guidance. Keep Change photo content-width and attached to its source preview. Before generation, from 601px through 900px the summary sits beside the primary action and tips use two columns; on phones these return to a linear stack. Preparation tips remain fully visible above 600px; phones use the disclosure described below.
 
 Completed results read: country and dimensions, Download JPEG, authority rules
-reminder, then "Not happy with the framing?" at the panel bottom. Help starts
-closed, with an info icon and a keyboard-operable toggle. Expanded content
+reminder, then "Not happy with the framing?" at the panel bottom. Show the output
+for review; downloading starts only when the user activates Download JPEG.
+Help starts closed, with an info icon and a keyboard-operable toggle. Expanded content
 appears above the same toggle without a modal, live announcement, or nested card.
 The details panel stretches on desktop; flexible space and 24px top separation
 keep the help last.

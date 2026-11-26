@@ -53,7 +53,8 @@ initially closed Photo tips order. The same advice is available at every width.
 
 After cropping, Generate passport photo is available in the country/size panel;
 it invokes the same request handler as the hero form. Successful generation
-replaces this action with Download JPEG and retains automatic download behavior.
+shows the result for review and replaces this action with Download JPEG.
+Downloading starts only when the user activates that link.
 
 Change photo is a restrained outlined secondary action beneath the original,
 consistent with the form. During generation, the crop hint and replacement action
@@ -116,7 +117,7 @@ Keep the crop editor and animated help separate because they own complex
 interactions. The editor is dynamically loaded on demand.
 
 Preserve original/cropped file separation, stale-request guards, quiet
-cancellation, object-URL cleanup, manual/automatic download, and keyboard focus.
+cancellation, object-URL cleanup, user-initiated download, and keyboard focus.
 Use the complete frontend tests plus production-browser checks for affected
 desktop/phone states. Current visual tokens live in `frontend/DESIGN.md`; record
 shipping asset origins in documentation, without modifying protected rasters.

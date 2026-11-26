@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { PercentCrop } from "react-image-crop";
 import { ACCEPTED_TYPES, countries, MAX_FILE_SIZE } from "@/lib/countries";
-import { downloadPassportPhoto } from "@/lib/photo-download";
 import {
   normalizePhotoError,
   photoError,
@@ -161,7 +160,6 @@ export function usePhotoStudio() {
       }
       const resultUrl = URL.createObjectURL(blob);
       setResult(resultUrl);
-      downloadPassportPhoto(resultUrl, country);
     } catch (err) {
       if (request.current !== controller) return;
       setError(

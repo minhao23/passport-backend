@@ -36,12 +36,17 @@ function studio(t, overrides = {}) {
       },
       createImageBitmap: async () => ({ close() {} }),
       fetch: async () => jpeg(),
-      ...overrides,
-    },
-    {
-      "@/lib/photo-download": {
-        downloadPassportPhoto: (...args) => downloads.push(args),
+      document: {
+        createElement: () => {
+          const link = {
+            click: () => downloads.push([link.href, link.download]),
+            remove() {},
+          };
+          return link;
+        },
+        body: { appendChild() {} },
       },
+      ...overrides,
     },
   );
   t.after(() => harness.unmount());
@@ -164,6 +169,23 @@ test("late image decoding cannot replace a newer selection or removed photo", as
   assert.equal(closed, 3);
 });
 
+test("successful generation shows a reviewable result without starting a download", async (t) => {
+  const state = studio(t);
+  await state.render().selectFile(photo());
+  for (const country of ["United States", "Singapore"]) {
+    state.render().changeCountry(country);
+    await state.render().generate();
+    const result = state.render();
+    assert.equal(result.loading, false);
+    assert.equal(result.error, null);
+    assert.equal(result.result, state.created.at(-1).url);
+    assert.equal(state.created.at(-1).blob.type, "image/jpeg");
+    assert.deepEqual(state.downloads, []);
+    state.render();
+    assert.deepEqual(state.downloads, []);
+  }
+});
+
 test("cancellation preserves the photo and a late response cannot overwrite a retry", async (t) => {
   const requests = [];
   const state = studio(t, {
@@ -192,7 +214,7 @@ test("cancellation preserves the photo and a late response cannot overwrite a re
   const result = state.render();
   assert.equal(result.loading, false);
   assert.equal(result.result, state.created.at(-1).url);
-  assert.deepEqual(state.downloads, [[result.result, "United States"]]);
+  assert.deepEqual(state.downloads, []);
   result.changeCountry("Singapore");
   assert.equal(state.render().result, "");
   assert.ok(state.revoked.includes(result.result));

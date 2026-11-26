@@ -56,13 +56,11 @@ The modal lives in `components/photo-studio/photo-crop-modal.tsx`; pixel geometr
 and export live in `lib/photo-crop.ts`. Crop/export and download regression checks
 share `tests/frontend_photo_utils.test.mjs`.
 
-Each successful generation automatically starts a JPEG download. The result
-panel keeps country and photo size, with a **Download JPEG** button for saving
-again or when the browser blocks automatic downloads. Browser settings determine
-whether a Save dialog appears. Re-rendering, cropping, cancelling, and failed
-requests do not start downloads. The download helper and shared filename live in
-`lib/photo-download.ts`; run `node --test tests/frontend_photo_utils.test.mjs` for
-the combined utility checks.
+Each successful generation shows the result for review without starting a
+download. The result panel keeps country and photo size, with a **Download JPEG**
+button for saving when the user chooses. Browser settings determine whether a
+Save dialog appears. The shared filename lives in `lib/photo-download.ts`; run
+`node --test tests/frontend_photo_utils.test.mjs` for the combined utility checks.
 
 Phones at widths up to 600px show one preview at a time, with Original/Result
 switching, tap-to-crop, full-width actions, and initially closed Photo tips.
