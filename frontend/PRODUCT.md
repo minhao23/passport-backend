@@ -30,8 +30,8 @@ destination. Shared studio state and handlers serve both desktop and phone.
 - Open a rectangular crop editor by desktop double-click, phone tap, or keyboard
   activation. Preserve the original and save the crop as generation input.
 - Remove the background, apply listed dimensions, and return a JPEG.
-- Automatically start a download on successful generation, retaining a manual
-  Download JPEG action.
+- Show the generated photo for review. Download only when the user activates
+  Download JPEG.
 - Cancel quietly without losing the photo, crop, or country. Discard stale
   responses and allow replacement or retry.
 - Show country-specific preparation tips before generation. Offer initially

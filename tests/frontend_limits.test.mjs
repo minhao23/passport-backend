@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import { createServer, request as httpRequest } from "node:http";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { framingError } from "./frontend-test-utils.mjs";
 
 const require = createRequire(import.meta.url);
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -24,7 +26,7 @@ function reply(response, status = 200) {
     "Content-Type": status === 200 ? "image/jpeg" : "application/json",
   });
   response.end(status === 200 ? Buffer.from([0xff, 0xd8, 0xff, 0xd9])
-    : JSON.stringify({ code, detail: "Test upstream response" }));
+    : JSON.stringify(mode === "framing" ? framingError : { code, detail: "Test upstream response" }));
 }
 
 function form(size = 5) {
@@ -50,7 +52,7 @@ before(async () => {
       held.push(response);
       onHeld();
     } else {
-      reply(response, mode === "busy" ? 503 : mode === "no-person" ? 422
+      reply(response, mode === "busy" ? 503 : mode === "no-person" || mode === "framing" ? 422
         : mode === "timeout" ? 408 : 200);
     }
   });
@@ -123,6 +125,22 @@ test("homepage retains the studio and submission note without the preparation gu
   assert.match(html, /<footer/);
   assert.match(html, /Skip to photo studio/);
   assert.match(html, /Upload your photo/);
+});
+
+test("homepage advertises the supplied PNG as its browser icon", async () => {
+  const response = await fetch(new URL("/", url));
+  const html = await response.text();
+  const icon = html.match(/<link\b[^>]*rel="icon"[^>]*href="([^"]+)"[^>]*>/);
+  assert.ok(icon, "The homepage must include a browser icon link");
+  assert.match(icon[0], /type="image\/png"/);
+  assert.match(icon[0], /sizes="512x512"/);
+  const image = await fetch(new URL(icon[1].replace(/&amp;/g, "&"), url));
+  assert.equal(image.status, 200);
+  assert.match(image.headers.get("content-type"), /image\/png/);
+  assert.deepEqual(
+    Buffer.from(await image.arrayBuffer()),
+    await readFile(new URL("../frontend/app/icon.png", import.meta.url)),
+  );
 });
 
 test("valid upload and exact 10 MiB file reach upstream", async () => {
@@ -235,6 +253,21 @@ test("backend busy and no-person errors remain distinct", async () => {
     const timeout = await send();
     assert.equal(timeout.response.status, 408);
     assert.equal(timeout.payload.code, "PHOTO_ISSUE");
+  } finally {
+    mode = "success";
+  }
+});
+
+test("proxy preserves the framing introduction and recovery tips", async () => {
+  try {
+    mode = "framing";
+    const { response, payload } = await send();
+    assert.equal(response.status, 422);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.deepEqual(payload, {
+      ...framingError,
+      title: "This photo needs a little attention",
+    });
   } finally {
     mode = "success";
   }

@@ -61,6 +61,13 @@ export default function PhotoStudio() {
             <div>
               <strong>{studio.error.title}</strong>
               <p>{studio.error.detail}</p>
+              {studio.error.tips && (
+                <ul>
+                  {studio.error.tips.map((tip) => (
+                    <li key={tip}>{tip}</li>
+                  ))}
+                </ul>
+              )}
               {studio.error.code === "PERSON_NOT_DETECTED" && (
                 <button
                   className="quiet-button"

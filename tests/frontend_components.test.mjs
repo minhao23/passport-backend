@@ -5,6 +5,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   assertMarkup,
+  framingError,
   loadFrontendModule,
   mountFrontend,
 } from "./frontend-test-utils.mjs";
@@ -29,6 +30,38 @@ const { default: PassportPage } = loadFrontendModule(
 );
 const page = render(PassportPage);
 const guidance = page.match(/<aside\b[\s\S]*?<\/aside>/)[0];
+
+test("framing errors show an introduction and two semantic list tips", () => {
+  const { normalizePhotoError } = loadFrontendModule("lib/photo-errors.ts");
+  for (const payload of [
+    framingError, { code: "PHOTO_ISSUE", detail: "Use a smaller photo." },
+  ]) {
+    const error = normalizePhotoError(payload, 422);
+    const { default: PhotoStudio } = loadFrontendModule(
+      "components/photo-studio/photo-studio.tsx",
+      {
+        "next/dynamic": { default: () => () => null },
+        "@/components/background-comparison": { default: () => null },
+        "./photo-upload-form": { default: () => null },
+        "./use-photo-studio": { usePhotoStudio: () => ({ error }) },
+      },
+    );
+    const html = render(PhotoStudio);
+    assertMarkup(html, [
+      /role="alert"/, /tabindex="-1"/, /data-error-code="PHOTO_ISSUE"/,
+    ]);
+    if (payload.tips) {
+      assertMarkup(html, [
+        /<p>We couldn&#x27;t frame this photo cleanly without leaving white borders along the sides\.<\/p><ul>/,
+        /<li>Adjust the crop: widen or reset it to show more of both shoulders\.<\/li>/,
+        /<li>Take a new photo: hold the camera farther away/,
+      ]);
+      assert.equal((html.match(/<li>/g) ?? []).length, 2);
+    } else {
+      assertMarkup(html, [/<p>Use a smaller photo\.<\/p>/], [/<ul>|<li>/]);
+    }
+  }
+});
 
 test("sample photo examples are an initially closed native disclosure after the warning", () => {
   assertMarkup(
@@ -186,6 +219,8 @@ test("completed results order download, rules and collapsed framing help", () =>
         html,
         [
           /Download JPEG/,
+          /<a href="blob:result" download="passport-singapore\.jpg" class="primary download">/,
+          /<img src="blob:result" alt="Generated passport photo for Singapore"/,
           /class="output-details has-result"/,
           /aria-label="Framing tips" hidden=""/,
           /aria-expanded="false"/,
@@ -193,6 +228,9 @@ test("completed results order download, rules and collapsed framing help", () =>
           /Center your face in the crop with similar space/,
           /Center your face<br\/>in the crop/,
           /Shoulders cropped too tightly/,
+          /Widen or reset the crop to show more of both shoulders/,
+          /cut off in the original, retake your selfie from farther away/,
+          /with your whole head and shoulders in view/,
           /Use the crop tool on your original photo to center your face/,
           /with similar space on both sides/,
           /Not facing straight ahead/,

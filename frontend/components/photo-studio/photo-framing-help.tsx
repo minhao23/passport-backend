@@ -103,9 +103,9 @@ export default function PhotoFramingHelp() {
           <article>
             <h5>Shoulders cropped too tightly</h5>
             <p>
-              We need enough of both shoulders visible to frame your photo
-              cleanly. Widen or reset the crop. If the original photo cuts them
-              off, use a wider photo.
+              Widen or reset the crop to show more of both shoulders. If
+              they&apos;re cut off in the original, retake your selfie from
+              farther away with your whole head and shoulders in view.
             </p>
           </article>
           <article>

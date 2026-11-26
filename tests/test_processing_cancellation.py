@@ -870,11 +870,26 @@ class DisconnectTests(PhotoRequestTests):
                 self.processor.side_effect = error
                 response = await self.process()
             self.assertEqual(response.status_code, 422)
-            self.assertEqual(
-                json.loads(response.body),
-                {"code": "PHOTO_ISSUE", "detail": error.message},
-            )
+            payload = json.loads(response.body)
+            tips = payload.pop("tips", None)
+            self.assertEqual(payload, {"code": "PHOTO_ISSUE", "detail": error.message})
             self.assertEqual(response.headers["cache-control"], "no-store")
+            if isinstance(error, SubjectFramingError):
+                self.assertEqual(
+                    payload["detail"],
+                    "We couldn't frame this photo cleanly without leaving white borders "
+                    "along the sides.",
+                )
+                self.assertEqual(
+                    tips,
+                    [
+                        "Adjust the crop: widen or reset it to show more of both shoulders.",
+                        "Take a new photo: hold the camera farther away so your whole head "
+                        "and both shoulders are visible.",
+                    ],
+                )
+            else:
+                self.assertIsNone(tips)
 
     async def test_unexpected_worker_errors_are_logged_without_exposing_details(self):
         before = set(asyncio.all_tasks())
