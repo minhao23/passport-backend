@@ -28,6 +28,14 @@ test("upload selection accepts HEIC MIME types and gallery extensions at 15 MiB"
     assert.ok(PHOTO_ACCEPT.split(",").includes(type));
 });
 
+test("unsupported-format guidance recommends JPG, PNG or WebP", async () => {
+  const { preparePhoto } = loadFrontendModule("lib/photo-loading.ts");
+  await assert.rejects(
+    preparePhoto(new File(["photo"], "photo.tiff", { type: "image/tiff" })),
+    { message: "Please choose a JPG, PNG, or WebP photo." },
+  );
+});
+
 test("HEIC header dimensions are bounded before conversion or pixel decoding", async () => {
   const { checkHeicDimensions } = loadFrontendModule("lib/photo-loading.ts");
   await checkHeicDimensions(heicPhoto());
