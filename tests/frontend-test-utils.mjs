@@ -11,12 +11,40 @@ const require = createRequire(import.meta.url);
 
 export const framingError = {
   code: "PHOTO_ISSUE",
-  detail: "We couldn't frame this photo cleanly without leaving white borders along the sides.",
+  detail:
+    "We couldn't frame this photo cleanly without leaving white borders along the sides.",
   tips: [
     "Adjust the crop: widen or reset it to show more of both shoulders.",
     "Take a new photo: hold the camera farther away so your whole head and both shoulders are visible.",
   ],
 };
+
+export function heicPhoto(
+  name = "portrait.heic",
+  type = "image/heic",
+  width = 32,
+  height = 48,
+) {
+  const box = (kind, payload) => {
+    const header = Buffer.alloc(8);
+    header.writeUInt32BE(header.length + payload.length);
+    header.write(kind, 4);
+    return Buffer.concat([header, payload]);
+  };
+  const extent = Buffer.alloc(12);
+  extent.writeUInt32BE(width, 4);
+  extent.writeUInt32BE(height, 8);
+  const metadata = box(
+    "meta",
+    Buffer.concat([
+      Buffer.alloc(4),
+      box("iprp", box("ipco", box("ispe", extent))),
+    ]),
+  );
+  return new File([box("ftyp", Buffer.from("heic\0\0\0\0")), metadata], name, {
+    type,
+  });
+}
 
 export async function loadFrontendESModule(filename) {
   const { outputText } = ts.transpileModule(

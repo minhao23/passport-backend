@@ -77,5 +77,12 @@ export const countries: Record<string, readonly [number, number]> = {
   Zimbabwe: [51, 51],
 };
 
-export const MAX_FILE_SIZE = 10 * 1024 * 1024;
-export const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+export const MAX_FILE_SIZE = 15 * 1024 * 1024;
+export const HEIC_TYPES = ["image/heic", "image/heif"];
+export const ACCEPTED_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  ...HEIC_TYPES,
+];
+export const PHOTO_ACCEPT = [...ACCEPTED_TYPES, ".heic", ".heif"].join(",");

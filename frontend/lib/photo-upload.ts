@@ -16,7 +16,7 @@ export async function readPhotoForm(request: Request): Promise<FormData> {
   const length = request.headers.get("content-length");
   if (length && Number(length) > MAX_REQUEST_BYTES) {
     throw new PhotoUploadError(
-      "Please upload one photo of 10 MB or smaller.",
+      "Please upload one photo of 15 MB or smaller.",
       413,
     );
   }
@@ -49,7 +49,7 @@ export async function readPhotoForm(request: Request): Promise<FormData> {
       received += chunk.value.byteLength;
       if (received > MAX_REQUEST_BYTES) {
         throw new PhotoUploadError(
-          "Please upload one photo of 10 MB or smaller.",
+          "Please upload one photo of 15 MB or smaller.",
           413,
         );
       }

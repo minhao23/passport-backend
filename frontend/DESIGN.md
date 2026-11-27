@@ -290,7 +290,13 @@ utility. Generate/Cancel markup and local focus restoration share
 
 The issuing-country control is a native select inside a white, one-pixel bordered row with `field` corners. Its label and tabular dimensions sit above it. The chevron is an inert inline icon; the select retains keyboard behavior and descriptions. Disabled state locks country changes during processing without a separate painted field variant.
 
-The actual file input is visually hidden and reached through the upload button. Accepted formats and size remain visible. Drag-over adds a lilac background and the shared focus-colored outline. Selecting a photo shows a local preview; upload is not automatic processing.
+The actual file input is visually hidden and reached through the upload button.
+JPG, PNG, WebP, and HEIC support and the 15 MB cap remain visible; HEIF is also
+accepted. Drag-over adds a lilac background and the shared focus-colored outline.
+Selection/conversion shows Opening your photo using the existing quiet activity
+style. HEIC/HEIF converts locally to a full-resolution JPEG with native decoding
+or a lazy fallback. Selecting a photo shows a local preview; upload is not
+automatic processing. Generation stays unavailable until selection completes.
 
 ### Navigation
 

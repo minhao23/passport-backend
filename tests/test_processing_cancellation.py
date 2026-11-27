@@ -45,10 +45,12 @@ from errors import (
     SubjectFramingError,
     SubjectSeparationError,
     SubjectTooSmallError,
+    UploadTooLargeError,
 )
 from main import app
 from services import image_processor, model_runtime, segmentation
 from services.processing_jobs import ProcessingPool, processing_pool
+from utils import image_loading
 from utils.image_loading import check_webp_header
 from utils.limits import (
     MAX_ACTIVE_JOBS,
@@ -183,6 +185,79 @@ class WebPHeaderTests(unittest.TestCase):
         ):
             with self.subTest(data=data), self.assertRaises(InvalidPhotoError):
                 check_webp_header(data)
+
+
+class HeifLoadingTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        image_loading._register_heif()
+
+    def test_heic_decodes_bgr_without_opencv_codec_and_bounds_working_size(self):
+        data = photo_bytes((1200, 800), format="HEIF", quality=95)
+        with patch.object(cv2, "imdecode") as opencv:
+            photo, scale = image_loading.decode_photo(data)
+        opencv.assert_not_called()
+        self.assertEqual(photo.shape, (683, 1024, 3))
+        self.assertEqual(scale, 1)
+        np.testing.assert_allclose(photo[100, 100], [105, 65, 25], atol=3)
+
+    def test_heic_selects_only_the_primary_photo(self):
+        with (
+            Image.new("RGB", (48, 32), (200, 0, 0)) as first,
+            Image.new("RGB", (32, 48), (0, 0, 200)) as primary,
+        ):
+            output = io.BytesIO()
+            first.save(
+                output,
+                format="HEIF",
+                save_all=True,
+                append_images=[primary],
+                primary_index=1,
+                quality=95,
+            )
+        photo, _ = image_loading.decode_photo(output.getvalue())
+        self.assertEqual(photo.shape, (48, 32, 3))
+        np.testing.assert_allclose(photo[10, 10], [200, 0, 0], atol=3)
+
+    def test_heic_orientation_is_applied(self):
+        with Image.new("RGB", (48, 32), (20, 60, 100)) as image:
+            exif = Image.Exif()
+            exif[274] = 6
+            output = io.BytesIO()
+            image.save(output, format="HEIF", exif=exif.tobytes(), quality=95)
+        photo, _ = image_loading.decode_photo(output.getvalue())
+        self.assertEqual(photo.shape, (48, 32, 3))
+
+    def test_oversized_heic_is_rejected_before_loading_pixels(self):
+        header = MagicMock()
+        header.format = "HEIF"
+        header.size = (5000, 4001)
+        header.__enter__.return_value = header
+        with (
+            patch.object(Image, "open", return_value=header),
+            patch.object(cv2, "imdecode") as opencv,
+            self.assertRaises(ImageDimensionsError),
+        ):
+            image_loading.decode_photo(b"\0\0\0\x10ftypheic\0\0\0\0")
+        header.convert.assert_not_called()
+        opencv.assert_not_called()
+
+    def test_malformed_heic_returns_a_public_photo_error(self):
+        for data in (b"\0\0\0\x10ftypheic\0\0\0\0", b"\0\0\0\x18ftypheic"):
+            with self.subTest(data=data), self.assertRaises(InvalidPhotoError):
+                image_loading.decode_photo(data)
+
+    def test_upload_limit_accepts_15_mib_but_not_an_extra_byte(self):
+        self.assertEqual(MAX_FILE_BYTES, 15 * 1024 * 1024)
+        jpeg = photo_bytes((32, 32), format="JPEG")
+        padded = jpeg + b"\0" * (MAX_FILE_BYTES - len(jpeg))
+        self.assertEqual(image_loading.decode_photo(padded)[0].shape, (32, 32, 3))
+        with (
+            patch.object(Image, "open") as decoder,
+            self.assertRaises(UploadTooLargeError),
+        ):
+            image_loading.decode_photo(padded + b"\0")
+        decoder.assert_not_called()
 
 
 class ProcessingCheckpointTests(unittest.TestCase):

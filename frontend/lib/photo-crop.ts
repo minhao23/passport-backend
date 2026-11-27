@@ -93,7 +93,7 @@ export async function createCroppedFile(
     });
     if (blob.size > maxFileSize) {
       throw new Error(
-        "This crop is over 10 MB. Select a smaller area or use a smaller photo.",
+        "This crop is over 15 MB. Select a smaller area or use a smaller photo.",
       );
     }
     const name = original.name.replace(/\.[^.]+$/, "") || "photo";

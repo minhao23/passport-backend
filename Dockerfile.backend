@@ -41,7 +41,7 @@ COPY best.pt ./best.pt
 COPY src/ ./src/
 
 # Validate native dependencies and the shipped face guide before serving requests.
-RUN PYTHONPATH=src python -c "import main; import rembg; import ultralytics; from services.head_framing import _face_detector; _face_detector()"
+RUN PYTHONPATH=src python -c "import main; import rembg; import ultralytics; import pillow_heif; from services.head_framing import _face_detector; _face_detector()"
 
 EXPOSE 8000
 

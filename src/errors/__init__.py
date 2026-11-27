@@ -43,7 +43,7 @@ class EmptyPhotoError(PhotoIssueError):
 
 class UploadTooLargeError(PhotoIssueError):
     status_code = 413
-    message = "Please upload one photo of 10 MB or smaller."
+    message = "Please upload one photo of 15 MB or smaller."
 
 
 class UploadTimeoutError(PhotoIssueError):
@@ -61,13 +61,14 @@ class ImageDimensionsError(PhotoIssueError):
 
 class InvalidPhotoError(PhotoIssueError):
     message = (
-        "We couldn't open this photo. Please upload a valid JPG, PNG, or WebP image."
+        "We couldn't open this photo. Please upload a valid JPG, PNG, WebP, HEIC, "
+        "or HEIF image."
     )
 
 
 class InvalidImageTypeError(PhotoIssueError):
     status_code = 400
-    message = "Please upload an image file, such as JPG, PNG, or WebP."
+    message = "Please upload an image file, such as JPG, PNG, WebP, HEIC, or HEIF."
 
 
 class PersonNotDetectedError(PhotoIssueError):

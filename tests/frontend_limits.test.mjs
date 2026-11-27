@@ -10,13 +10,14 @@ import { framingError } from "./frontend-test-utils.mjs";
 
 const require = createRequire(import.meta.url);
 const root = fileURLToPath(new URL("../", import.meta.url));
-const maxFile = 10 * 1024 * 1024;
+const maxFile = 15 * 1024 * 1024;
 let server;
 let frontend;
 let url;
 let mode = "success";
 let held = [];
 let upstreamCalls = 0;
+let upstreamType = "";
 let onHeld = () => {};
 
 function reply(response, status = 200) {
@@ -29,10 +30,10 @@ function reply(response, status = 200) {
     : JSON.stringify(mode === "framing" ? framingError : { code, detail: "Test upstream response" }));
 }
 
-function form(size = 5) {
+function form(size = 5, type = "image/png") {
   const body = new FormData();
   body.set("country", "United States");
-  body.set("file", new Blob([Buffer.alloc(size)], { type: "image/png" }), "photo.png");
+  body.set("file", new Blob([Buffer.alloc(size)], { type }), "photo");
   return body;
 }
 
@@ -46,7 +47,12 @@ async function send(body = form(), options = {}) {
 before(async () => {
   // Only the upstream inference is stubbed; the built Next.js route runs unchanged.
   server = createServer(async (request, response) => {
-    for await (const _ of request) { /* Drain the bounded forwarded multipart body. */ }
+    let prefix = "";
+    for await (const chunk of request) {
+      if (prefix.length < 2048)
+        prefix += chunk.toString().slice(0, 2048 - prefix.length);
+    }
+    upstreamType = prefix.match(/Content-Type: (image\/[^\r\n]+)/i)?.[1] || "";
     upstreamCalls++;
     if (mode === "hold") {
       held.push(response);
@@ -143,11 +149,20 @@ test("homepage advertises the supplied PNG as its browser icon", async () => {
   );
 });
 
-test("valid upload and exact 10 MiB file reach upstream", async () => {
-  for (const size of [5, maxFile]) {
+test("valid uploads above 10 MiB and at exactly 15 MiB reach upstream", async () => {
+  for (const size of [5, 10 * 1024 * 1024 + 1, maxFile]) {
     const { response } = await send(form(size));
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("cache-control"), "no-store");
+  }
+});
+
+test("HEIC and HEIF uploads are forwarded with their MIME types intact", async () => {
+  for (const type of ["image/heic", "image/heif"]) {
+    const { response } = await send(form(5, type));
+    assert.equal(response.status, 200);
+    assert.equal(upstreamType, type);
+    assert.equal(response.headers.get("content-type"), "image/jpeg");
   }
 });
 
@@ -162,7 +177,7 @@ test("oversized selected file is rejected without invoking upstream", async () =
 test("extra multipart parts cannot bypass the aggregate cap", async () => {
   const before = upstreamCalls;
   const body = form();
-  body.set("extra", new Blob([Buffer.alloc(11 * 1024 * 1024)]), "extra.bin");
+  body.set("extra", new Blob([Buffer.alloc(maxFile + 64 * 1024 + 1)]), "extra.bin");
   const { response } = await send(body);
   assert.equal(response.status, 413);
   assert.equal(upstreamCalls, before);
@@ -170,7 +185,7 @@ test("extra multipart parts cannot bypass the aggregate cap", async () => {
 
 test("chunked body without Content-Length is still bounded", async () => {
   const before = upstreamCalls;
-  const body = form(11 * 1024 * 1024);
+  const body = form(maxFile + 64 * 1024 + 1);
   const request = new Request(url, { method: "POST", body });
   const { response } = await send(request.body, {
     headers: { "Content-Type": request.headers.get("content-type") },
@@ -209,7 +224,7 @@ async function unfinishedUpload(payload) {
 
 test("unfinished oversized upload receives JSON before connection closes", { timeout: 15_000 }, async () => {
   const before = upstreamCalls;
-  const result = await unfinishedUpload(Buffer.alloc(11 * 1024 * 1024));
+  const result = await unfinishedUpload(Buffer.alloc(maxFile + 64 * 1024 + 1));
   assert.equal(result.status, 413);
   assert.equal(result.payload.code, "PHOTO_ISSUE");
   assert.equal(upstreamCalls, before);

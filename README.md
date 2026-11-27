@@ -37,9 +37,9 @@ submission warning/examples, and contact-only footer.
 Small single-owner components are combined with their owners instead of split
 into extra files. Styles stay beside their components; `app/globals.css` retains
 tokens, shared controls, and page-wide rules. Shared countries, errors, limits,
-crop geometry, and downloads remain in `frontend/lib/`; the server-side proxy
-remains in `app/api/process/route.ts`. The comparison component/assets are unchanged
-by these structural refactors.
+photo loading/conversion, crop geometry, and downloads remain in `frontend/lib/`;
+the server-side proxy remains in `app/api/process/route.ts`. The comparison
+component/assets are unchanged by these structural refactors.
 
 Run `npm run format` to format frontend TypeScript, TSX, and CSS, or
 `npm run format:check` to check formatting without changing files.
@@ -51,7 +51,14 @@ The editor and crop library load only when needed.
 Cancel or Escape leaves it unchanged. Reset restores the full original on save.
 The original stays in local state for re-cropping without repeated compression.
 Cropping uses original-resolution pixels and lossless PNG export, with the same
-10 MB upload limit. Nothing is sent until **Generate passport photo** is clicked.
+15 MB upload limit. Nothing is sent until **Generate passport photo** is clicked.
+HEIC/HEIF gallery photos are converted locally once to a full-resolution JPEG
+for preview, cropping, and generation. Native browser decoding is preferred;
+`heic-to/csp` loads on demand when needed. Conversion checks HEIF spatial-extent
+headers against the source dimension limits before decoding, and the converted
+JPEG must also fit the 15 MB cap. The converted original remains available for
+re-cropping. An Opening your photo status covers selection/conversion; it does
+not submit the photo to the processor.
 The modal lives in `components/photo-studio/photo-crop-modal.tsx`; pixel geometry
 and export live in `lib/photo-crop.ts`. Crop/export and download regression checks
 share `tests/frontend_photo_utils.test.mjs`.
@@ -145,9 +152,9 @@ It stores downloaded models in `.venv/model-cache` and Ultralytics settings
 in `.venv/ultralytics`, avoiding writes to global configuration directories.
 Set `U2NET_HOME` or `YOLO_CONFIG_DIR` to use an existing cache instead.
 
-The requirements include `rembg[cpu]` and Pillow. The first local launch downloads
-the MODNet portrait-matting model and takes longer than subsequent launches. Docker
-bundles its checksum-verified weights during the build, not during requests. Keep
+The requirements include `rembg[cpu]`, Pillow, and `pillow-heif`. The first local
+launch downloads the MODNet portrait-matting model and takes longer than subsequent
+launches. Docker bundles its checksum-verified weights during the build, not during requests. Keep
 `best.pt` at the repository root; its path is resolved from the backend source,
 independent of the working directory. Wait for application startup to finish before generating.
 FastAPI's interactive API documentation is at http://127.0.0.1:8000/docs.
@@ -162,8 +169,8 @@ cp frontend/.env.example frontend/.env.local
 npm run dev
 ```
 
-Open http://localhost:3000. Select a country, upload a JPG, PNG, or WebP
-of up to 10 MB, generate a photo, and download the resulting JPEG.
+Open http://localhost:3000. Select a country, upload a JPG, PNG, WebP, HEIC, or HEIF
+of up to 15 MB, generate a photo, and download the resulting JPEG.
 The original upload is previewed separately from the generated result.
 Changing the country or upload clears the previous result.
 `frontend/next.config.ts` also allows `127.0.0.1` as a development origin, so
@@ -175,6 +182,12 @@ during decoding where possible, rather than allocating their full-resolution
 RGB pixels first. PNG and WebP still require a full decode within the source
 dimension limits. WebP must be a still image;
 its container and bitstream dimensions are checked before opening a decoder.
+Direct API HEIC/HEIF uploads are decoded using a deferred `pillow-heif` plugin.
+Only the primary image is used, with container orientation applied and HDR
+converted to 8-bit RGB. Depth, auxiliary, and thumbnail decoding is disabled;
+HEIF decoding uses one thread and checks dimensions before loading pixels.
+The 20-megapixel source cap still applies, so full-resolution 24/48 MP photos
+must be resized before upload even if the compressed file is below 15 MB.
 
 After selection, use **Change photo** below Generate or beside the original
 preview to choose a replacement. Invalid replacements leave the current photo
@@ -271,7 +284,7 @@ Deploy the Next.js app as a Node.js service, not a static export. Deploy FastAPI
 separately and set `BACKEND_URL` to its reachable address. Configure infrastructure
 request/idle timeouts to allow the queued request to remain open: the Next.js
 upstream timeout is 430 seconds and the browser timeout is 500 seconds, including
-upload and response allowances. Configure upload limits for 10 MiB files plus
+upload and response allowances. Configure upload limits for 15 MiB files plus
 64 KiB multipart overhead. Uploads have a separate 60-second deadline.
 Hosted serverless providers may impose
 smaller request limits or execution timeouts; use a long-running Node service
