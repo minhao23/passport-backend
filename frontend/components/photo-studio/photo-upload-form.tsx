@@ -2,7 +2,7 @@
 
 import { useState, type RefObject } from "react";
 import { ArrowRight, ChevronDown, ImagePlus, LoaderCircle } from "lucide-react";
-import { ACCEPTED_TYPES, countries } from "@/lib/countries";
+import { PHOTO_ACCEPT, countries } from "@/lib/countries";
 import {
   CancelPhotoButton,
   GeneratePhotoButton,
@@ -14,6 +14,7 @@ type PhotoUploadFormProps = {
   country: string;
   size: readonly [number, number];
   file: File | null;
+  opening?: boolean;
   loading: boolean;
   inputRef: RefObject<HTMLInputElement | null>;
   onCountryChange: (country: string) => void;
@@ -28,6 +29,7 @@ export default function PhotoUploadForm({
   country,
   size: [width, height],
   file,
+  opening = false,
   loading,
   inputRef,
   onCountryChange,
@@ -77,15 +79,15 @@ export default function PhotoUploadForm({
         Choose the country issuing your passport, not your destination.
       </p>
       <p id="photo-help" className="sr-only">
-        Choose a JPG, PNG, or WebP up to 10 MB.
+        Choose a JPG, PNG, WebP, HEIC, or HEIF up to 15 MB.
       </p>
       <input
         ref={inputRef}
         id="photo"
         aria-label="Add your photo"
         type="file"
-        accept={ACCEPTED_TYPES.join(",")}
-        disabled={loading}
+        accept={PHOTO_ACCEPT}
+        disabled={loading || opening}
         className="sr-only"
         tabIndex={-1}
         aria-describedby="photo-help"
@@ -98,13 +100,13 @@ export default function PhotoUploadForm({
         className={`upload-area ${dragging ? "dragging" : ""}`}
         onDragOver={(event) => {
           event.preventDefault();
-          if (!loading) setDragging(true);
+          if (!loading && !opening) setDragging(true);
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={(event) => {
           event.preventDefault();
           setDragging(false);
-          void onFileSelect(event.dataTransfer.files[0]);
+          if (!opening) void onFileSelect(event.dataTransfer.files[0]);
         }}
       >
         {file && (
@@ -112,7 +114,14 @@ export default function PhotoUploadForm({
             Review your photo <ArrowRight size={18} aria-hidden="true" />
           </a>
         )}
-        {loading ? (
+        {opening ? (
+          <div className="processing-state">
+            <div className="processing-status" role="status">
+              <LoaderCircle className="spin" size={20} aria-hidden="true" />
+              <strong>Opening your photo...</strong>
+            </div>
+          </div>
+        ) : loading ? (
           <div className="processing-state">
             <div className="processing-status" role="status">
               <LoaderCircle className="spin" size={20} aria-hidden="true" />
@@ -144,6 +153,7 @@ export default function PhotoUploadForm({
           </button>
         )}
         {!loading &&
+          !opening &&
           (file ? (
             <>
               <p className="file-note" title={file.name}>
@@ -168,7 +178,7 @@ export default function PhotoUploadForm({
             </>
           ) : (
             <p className="upload-help">
-              JPG, PNG, WebP up to 10 MB. <span>Or drop it here.</span>
+              JPG, PNG, WebP, HEIC up to 15 MB. <span>Or drop it here.</span>
             </p>
           ))}
       </div>

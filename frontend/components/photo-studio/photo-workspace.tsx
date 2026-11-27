@@ -23,6 +23,7 @@ type PhotoWorkspaceProps = {
   size: readonly [number, number];
   preview: string;
   result: string;
+  opening?: boolean;
   loading: boolean;
   cropped: boolean;
   onChoosePhoto: () => void;
@@ -37,6 +38,7 @@ export default function PhotoWorkspace({
   size: [width, height],
   preview,
   result,
+  opening = false,
   loading,
   cropped,
   onChoosePhoto,
@@ -115,7 +117,7 @@ export default function PhotoWorkspace({
               <button
                 type="button"
                 className="photo-crop-preview"
-                disabled={loading}
+                disabled={loading || opening}
                 aria-label="Crop your uploaded photo"
                 aria-describedby={loading ? undefined : "photo-crop-hint"}
                 onDoubleClick={onCrop}
@@ -224,6 +226,7 @@ export default function PhotoWorkspace({
               !loading && (
                 <GeneratePhotoButton
                   ref={actions.primaryAction}
+                  disabled={opening}
                   onClick={actions.generate}
                   mobileLabel
                 />

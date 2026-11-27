@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { PercentCrop } from "react-image-crop";
-import { ACCEPTED_TYPES, countries, MAX_FILE_SIZE } from "@/lib/countries";
+import { countries } from "@/lib/countries";
+import { PhotoInputError, preparePhoto } from "@/lib/photo-loading";
 import {
   normalizePhotoError,
   photoError,
@@ -18,6 +19,7 @@ export function usePhotoStudio() {
   const [preview, setPreview] = useState("");
   const [result, setResult] = useState("");
   const [error, setError] = useState<PhotoError | null>(null);
+  const [opening, setOpening] = useState(false);
   const [loading, setLoading] = useState(false);
   const request = useRef<AbortController | null>(null);
   const selection = useRef(0);
@@ -41,6 +43,7 @@ export function usePhotoStudio() {
 
   useEffect(() => {
     return () => {
+      ++selection.current;
       const controller = request.current;
       request.current = null;
       controller?.abort();
@@ -51,44 +54,34 @@ export function usePhotoStudio() {
     if (!next || request.current) return;
     const version = ++selection.current;
     setError(null);
-    if (!ACCEPTED_TYPES.includes(next.type)) {
-      setError(
-        photoError("PHOTO_ISSUE", "Please choose a JPG, PNG, or WebP photo."),
-      );
-      return;
-    }
-    if (!next.size || next.size > MAX_FILE_SIZE) {
-      setError(
-        photoError(
-          "PHOTO_ISSUE",
-          "Please choose a non-empty photo that is 10 MB or smaller.",
-        ),
-      );
-      return;
-    }
+    setOpening(true);
     try {
-      const bitmap = await createImageBitmap(next);
-      bitmap.close();
+      const prepared = await preparePhoto(next);
       if (version !== selection.current) return;
-      originalSelection.current = next;
-      setOriginalFile(next);
+      originalSelection.current = prepared;
+      setOriginalFile(prepared);
       setSavedCrop(null);
-      setFile(next);
+      setFile(prepared);
       setResult("");
-    } catch {
+    } catch (err) {
       if (version === selection.current) {
         setError(
           photoError(
             "PHOTO_ISSUE",
-            "This image couldn't be opened. Please choose another photo.",
+            err instanceof PhotoInputError
+              ? err.message
+              : "This image couldn't be opened. Please choose another photo.",
           ),
         );
       }
+    } finally {
+      if (version === selection.current) setOpening(false);
     }
   }
 
   function applyCrop(original: File, cropped: File, crop: PercentCrop) {
-    if (request.current || originalSelection.current !== original) return false;
+    if (request.current || opening || originalSelection.current !== original)
+      return false;
     ++selection.current;
     setFile(cropped);
     setSavedCrop(cropped === original ? null : crop);
@@ -106,6 +99,7 @@ export function usePhotoStudio() {
   function removePhoto() {
     if (request.current) return;
     ++selection.current;
+    setOpening(false);
     originalSelection.current = null;
     setOriginalFile(null);
     setSavedCrop(null);
@@ -125,7 +119,7 @@ export function usePhotoStudio() {
   }
 
   async function generate() {
-    if (!file || request.current) return;
+    if (!file || opening || request.current) return;
     ++selection.current;
     setLoading(true);
     setError(null);
@@ -188,6 +182,7 @@ export function usePhotoStudio() {
     preview,
     result,
     error,
+    opening,
     loading,
     selectFile,
     applyCrop,

@@ -1,6 +1,8 @@
 """Validate image headers and decode a bounded working image."""
 
 import io
+from contextlib import closing
+from functools import cache
 
 import cv2
 import numpy as np
@@ -81,6 +83,15 @@ def check_webp_header(data: bytes) -> None:
         raise InvalidPhotoError()
 
 
+@cache
+def _register_heif() -> None:
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener(
+        decode_threads=1, thumbnails=False, depth_images=False, aux_images=False
+    )
+
+
 def decode_photo(image_bytes: bytes) -> tuple[np.ndarray, float]:
     """Return bounded BGR pixels and a working-image selection-gate scale."""
     if not image_bytes:
@@ -88,20 +99,28 @@ def decode_photo(image_bytes: bytes) -> tuple[np.ndarray, float]:
     if len(image_bytes) > MAX_FILE_BYTES:
         raise UploadTooLargeError()
     check_webp_header(image_bytes)
+    heif = image_bytes[4:8] == b"ftyp"
+    if heif:
+        _register_heif()
+    formats = ACCEPTED_IMAGE_FORMATS if heif else ACCEPTED_IMAGE_FORMATS - {"HEIF"}
+    image = None
 
     try:
         # Restrict plugins before a decoder can allocate unsupported image data.
-        with Image.open(
-            io.BytesIO(image_bytes), formats=list(ACCEPTED_IMAGE_FORMATS)
-        ) as header:
+        with Image.open(io.BytesIO(image_bytes), formats=list(formats)) as header:
             if header.format not in ACCEPTED_IMAGE_FORMATS:
                 raise InvalidPhotoError()
             image_format = header.format
             width, height = header.size
             check_dimensions(width, height)
+            if image_format == "HEIF":
+                # libheif applies HEIF rotation/mirroring and converts HDR to 8-bit.
+                # Only the primary photo is decoded; depth/auxiliary images stay off.
+                with closing(header.convert("RGB")) as rgb:
+                    image = cv2.cvtColor(np.asarray(rgb), cv2.COLOR_RGB2BGR)
     except Image.DecompressionBombError as exc:
         raise ImageDimensionsError() from exc
-    except (UnidentifiedImageError, OSError, ValueError) as exc:
+    except (UnidentifiedImageError, OSError, ValueError, RuntimeError, EOFError) as exc:
         if isinstance(exc, (InvalidPhotoError, ImageDimensionsError)):
             raise
         raise InvalidPhotoError() from exc
@@ -119,7 +138,8 @@ def decode_photo(image_bytes: bytes) -> tuple[np.ndarray, float]:
                 break
 
     try:
-        image = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), decode_flag)
+        if image is None:
+            image = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), decode_flag)
     except cv2.error as exc:
         raise InvalidPhotoError() from exc
     if image is None:

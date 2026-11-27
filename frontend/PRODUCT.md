@@ -25,7 +25,11 @@ destination. Shared studio state and handlers serve both desktop and phone.
 ## Capabilities and Constraints
 
 - Select from the countries and dimensions in `lib/countries.ts`.
-- Accept JPG, PNG, or WebP images up to 10 MB.
+- Accept JPG, PNG, WebP, HEIC, or HEIF images up to 15 MB.
+- Convert HEIC/HEIF locally to a full-resolution JPEG for preview and cropping,
+  loading the fallback decoder only when native decoding is unavailable.
+  Keep the 20-megapixel/10,000-pixel source limits and the converted-file cap.
+- Show Opening your photo during selection/conversion without sending a request.
 - Preview the selected image locally before the user explicitly generates.
 - Open a rectangular crop editor by desktop double-click, phone tap, or keyboard
   activation. Preserve the original and save the crop as generation input.

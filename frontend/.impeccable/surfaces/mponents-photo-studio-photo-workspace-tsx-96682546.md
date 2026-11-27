@@ -118,6 +118,11 @@ interactions. The editor is dynamically loaded on demand.
 
 Preserve original/cropped file separation, stale-request guards, quiet
 cancellation, object-URL cleanup, user-initiated download, and keyboard focus.
+Gallery HEIC/HEIF photos convert locally once to a full-resolution JPEG, with
+native decoding preferred and a lazy decoder fallback. Show Opening your photo
+in the existing activity style while selection completes. The file cap is 15 MB
+for original, converted, and cropped uploads; keep the 20-megapixel source limit.
+No image bytes are sent until explicit generation.
 Use the complete frontend tests plus production-browser checks for affected
 desktop/phone states. Current visual tokens live in `frontend/DESIGN.md`; record
 shipping asset origins in documentation, without modifying protected rasters.

@@ -42,14 +42,14 @@ export async function POST(request: Request) {
       return Response.json(
         photoError(
           "PHOTO_ISSUE",
-          "Please upload a non-empty JPG, PNG, or WebP image.",
+          "Please upload a non-empty JPG, PNG, WebP, HEIC, or HEIF image.",
         ),
         { status: 400, headers: noStore },
       );
     }
     if (file.size > MAX_FILE_SIZE) {
       return Response.json(
-        photoError("PHOTO_ISSUE", "Your photo must be 10 MB or smaller."),
+        photoError("PHOTO_ISSUE", "Your photo must be 15 MB or smaller."),
         { status: 413, headers: noStore },
       );
     }

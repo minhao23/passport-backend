@@ -1,4 +1,4 @@
-MAX_FILE_BYTES = 10 * 1024 * 1024
+MAX_FILE_BYTES = 15 * 1024 * 1024
 MAX_REQUEST_BYTES = MAX_FILE_BYTES + 64 * 1024
 MAX_UPLOAD_SECONDS = 60
 MAX_ACTIVE_JOBS = 1
@@ -7,5 +7,11 @@ MAX_QUEUE_WAIT_SECONDS = 180
 MAX_SOURCE_PIXELS = 20_000_000
 MAX_SOURCE_SIDE = 10_000
 MAX_WORKING_SIDE = 1024
-ACCEPTED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
-ACCEPTED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP"}
+ACCEPTED_CONTENT_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/heic",
+    "image/heif",
+}
+ACCEPTED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP", "HEIF"}

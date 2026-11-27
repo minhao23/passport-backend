@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mountFrontend } from "./frontend-test-utils.mjs";
+import { heicPhoto, mountFrontend } from "./frontend-test-utils.mjs";
 
 const deferred = () => {
   let resolve;
@@ -13,7 +13,7 @@ const photo = (name = "portrait.jpg", type = "image/jpeg") =>
   new File(["portrait"], name, { type });
 const jpeg = () => new Response(new Blob(["jpeg"], { type: "image/jpeg" }));
 
-function studio(t, overrides = {}) {
+function studio(t, overrides = {}, stubs = {}) {
   const created = [];
   const revoked = [];
   const downloads = [];
@@ -23,6 +23,7 @@ function studio(t, overrides = {}) {
     {
       AbortController,
       FormData,
+      File,
       Error,
       setTimeout,
       clearTimeout,
@@ -48,10 +49,77 @@ function studio(t, overrides = {}) {
       },
       ...overrides,
     },
+    stubs,
   );
   t.after(() => harness.unmount());
   return { ...harness, created, revoked, downloads };
 }
+
+test("HEIC gallery selection converts locally and sends JPEG only after Generate", async (t) => {
+  const started = deferred();
+  const converted = deferred();
+  let uploads = 0;
+  class UnsupportedImage {
+    set src(value) {
+      if (value) queueMicrotask(() => this.onerror());
+    }
+  }
+  const state = studio(
+    t,
+    {
+      Image: UnsupportedImage,
+      fetch: async (_, options) => {
+        uploads++;
+        assert.equal(options.body.get("file").type, "image/jpeg");
+        return jpeg();
+      },
+    },
+    {
+      "heic-to/csp": {
+        heicTo: () => {
+          started.resolve();
+          return converted.promise;
+        },
+      },
+    },
+  );
+  const selection = state.render().selectFile(heicPhoto("gallery.HEIC", ""));
+  assert.equal(state.render().opening, true);
+  await started.promise;
+  assert.equal(uploads, 0);
+  converted.resolve(new Blob(["jpeg"], { type: "image/jpeg" }));
+  await selection;
+  const selected = state.render();
+  assert.equal(selected.opening, false);
+  assert.equal(selected.file.name, "gallery.jpg");
+  assert.equal(selected.originalFile, selected.file);
+  assert.equal(uploads, 0);
+  await selected.generate();
+  assert.equal(uploads, 1);
+  assert.deepEqual(state.downloads, []);
+});
+
+test("files above 10 MiB and at exactly 15 MiB are accepted, not larger ones", async (t) => {
+  const state = studio(t);
+  const limit = 15 * 1024 * 1024;
+  for (const size of [10 * 1024 * 1024 + 1, limit]) {
+    const file = new File([Buffer.alloc(size)], "large.jpg", {
+      type: "image/jpeg",
+    });
+    await state.render().selectFile(file);
+    assert.equal(state.render().file, file);
+    assert.equal(state.render().error, null);
+  }
+  await state
+    .render()
+    .selectFile(
+      new File([Buffer.alloc(limit + 1)], "too-large.jpg", {
+        type: "image/jpeg",
+      }),
+    );
+  assert.match(state.render().error.detail, /15 MB/);
+  assert.equal(state.render().opening, false);
+});
 
 test("processing actions restore focus locally on desktop and phone", () => {
   for (const mobile of [false, true]) {
@@ -167,6 +235,17 @@ test("late image decoding cannot replace a newer selection or removed photo", as
   await pending;
   assert.equal(state.render().file, null);
   assert.equal(closed, 3);
+});
+
+test("unmount invalidates a pending selection before it can retain a photo", async (t) => {
+  const pending = deferred();
+  const state = studio(t, { createImageBitmap: () => pending.promise });
+  const selection = state.render().selectFile(photo());
+  state.unmount();
+  pending.resolve({ close() {} });
+  await selection;
+  assert.equal(state.render().file, null);
+  assert.equal(state.created.length, 0);
 });
 
 test("successful generation shows a reviewable result without starting a download", async (t) => {

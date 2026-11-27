@@ -36,6 +36,7 @@ export default function PhotoStudio() {
             country={studio.country}
             size={studio.size}
             file={studio.file}
+            opening={studio.opening}
             loading={studio.loading}
             inputRef={input}
             onCountryChange={studio.changeCountry}
@@ -88,6 +89,7 @@ export default function PhotoStudio() {
           size={studio.size}
           preview={studio.preview}
           result={studio.result}
+          opening={studio.opening}
           loading={studio.loading}
           cropped={studio.savedCrop !== null}
           onChoosePhoto={choosePhoto}
