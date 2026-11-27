@@ -652,6 +652,10 @@ are self-hosted through `next/font/local`, with license files in
 `frontend/assets/fonts/`; page rendering does not request Google Fonts.
 
 The dated backend investigation and matrix results are preserved in
-`debug-headroom-borders.md` and `framing-policy-test-results.md`. Their local
+[the headroom investigation](docs/investigations/debug-headroom-borders.md) and
+[the framing policy comparison](docs/experiments/framing-policy-test-results.md). Their local
 measurements are historical evidence, not universal framing, acceptance, or
 Linux 2 GB memory guarantees.
+
+The unresolved iPhone upload investigation is recorded in
+[the HEIF decode report](docs/investigations/debug-iphone-heif-decode.md).

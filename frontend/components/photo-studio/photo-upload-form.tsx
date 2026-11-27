@@ -79,7 +79,7 @@ export default function PhotoUploadForm({
         Choose the country issuing your passport, not your destination.
       </p>
       <p id="photo-help" className="sr-only">
-        Choose a JPG, PNG, WebP, HEIC, or HEIF up to 15 MB.
+        Choose a JPG, PNG, or WebP up to 15 MB.
       </p>
       <input
         ref={inputRef}
@@ -178,7 +178,7 @@ export default function PhotoUploadForm({
             </>
           ) : (
             <p className="upload-help">
-              JPG, PNG, WebP, HEIC up to 15 MB. <span>Or drop it here.</span>
+              JPG, PNG, WebP up to 15 MB. <span>Or drop it here.</span>
             </p>
           ))}
       </div>

@@ -42,7 +42,7 @@ export async function POST(request: Request) {
       return Response.json(
         photoError(
           "PHOTO_ISSUE",
-          "Please upload a non-empty JPG, PNG, WebP, HEIC, or HEIF image.",
+          "Please upload a non-empty JPG, PNG, or WebP image.",
         ),
         { status: 400, headers: noStore },
       );

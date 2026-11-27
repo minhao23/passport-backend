@@ -131,6 +131,9 @@ test("homepage retains the studio and submission note without the preparation gu
   assert.match(html, /<footer/);
   assert.match(html, /Skip to photo studio/);
   assert.match(html, /Upload your photo/);
+  assert.match(html, /<p id="photo-help" class="sr-only">Choose a JPG, PNG, or WebP up to 15 MB\.<\/p>/);
+  assert.match(html, /<p class="upload-help">JPG, PNG, WebP up to 15 MB\./);
+  assert.doesNotMatch(html, /<p[^>]*>[^<]*\b(?:HEIC|HEIF)\b/i);
 });
 
 test("homepage advertises the supplied PNG as its browser icon", async () => {
@@ -240,7 +243,15 @@ test("stalled upload receives timeout JSON and releases admission", { timeout: 7
   assert.equal((await send()).response.status, 200);
 });
 
-test("duplicate files and malformed multipart return input errors", async () => {
+test("invalid images, duplicate files and malformed multipart return input errors", async () => {
+  for (const body of [form(5, "image/tiff"), form(0)]) {
+    const before = upstreamCalls;
+    const { response, payload } = await send(body);
+    assert.equal(response.status, 400);
+    assert.equal(payload.code, "PHOTO_ISSUE");
+    assert.equal(payload.detail, "Please upload a non-empty JPG, PNG, or WebP image.");
+    assert.equal(upstreamCalls, before);
+  }
   const body = form();
   body.append("file", new Blob(["other"], { type: "image/png" }), "other.png");
   assert.equal((await send(body)).response.status, 400);

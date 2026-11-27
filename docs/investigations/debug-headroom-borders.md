@@ -86,7 +86,7 @@ No production fix or live post-fix verification had been performed at this stage
 
 ## Follow-up Policy Tests
 
-- Full report: `framing-policy-test-results.md`.
+- Full report: [framing-policy-test-results.md](../experiments/framing-policy-test-results.md).
 - Five policies were evaluated on 1,742 framing cases: 1,547 synthetic cases and 195 real-matte variants from four source photos, across all 13 configured aspect ratios.
 - Actual-model mattes for three additional portraits were written successfully, along with face metadata and collection-complete evidence at NDJSON lines 31-35.
 - The native collection process subsequently exited nonzero with the sandbox restriction on `/var/lib/libuuid/clock.txt`. The framing matrices, regression suites, and independent oracle all exited 0.

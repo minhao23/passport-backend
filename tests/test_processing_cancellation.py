@@ -964,6 +964,11 @@ class DisconnectTests(PhotoRequestTests):
                     ],
                 )
             else:
+                self.assertEqual(
+                    payload["detail"],
+                    "We couldn't open this photo. Please upload a valid JPG, PNG, "
+                    "or WebP image.",
+                )
                 self.assertIsNone(tips)
 
     async def test_unexpected_worker_errors_are_logged_without_exposing_details(self):
@@ -1095,8 +1100,17 @@ class UploadBoundaryTests(PhotoRequestTests):
         self.assertEqual(len(self.processor.call_args.args[0]), MAX_FILE_BYTES)
 
     async def test_mime_rejection_releases_admission(self):
-        status, _, _, _ = await self.request(self.multipart(content_type="image/tiff"))
+        status, body, _, _ = await self.request(
+            self.multipart(content_type="image/tiff")
+        )
         self.assertEqual(status, 400)
+        self.assertEqual(
+            json.loads(body),
+            {
+                "code": "PHOTO_ISSUE",
+                "detail": "Please upload an image file, such as JPG, PNG, or WebP.",
+            },
+        )
         status, _, _, _ = await self.request(self.multipart())
         self.assertEqual(status, 200)
 

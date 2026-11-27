@@ -61,14 +61,13 @@ class ImageDimensionsError(PhotoIssueError):
 
 class InvalidPhotoError(PhotoIssueError):
     message = (
-        "We couldn't open this photo. Please upload a valid JPG, PNG, WebP, HEIC, "
-        "or HEIF image."
+        "We couldn't open this photo. Please upload a valid JPG, PNG, or WebP image."
     )
 
 
 class InvalidImageTypeError(PhotoIssueError):
     status_code = 400
-    message = "Please upload an image file, such as JPG, PNG, WebP, HEIC, or HEIF."
+    message = "Please upload an image file, such as JPG, PNG, or WebP."
 
 
 class PersonNotDetectedError(PhotoIssueError):

@@ -127,9 +127,7 @@ async function convertHeic(file: File): Promise<File> {
 export async function preparePhoto(file: File): Promise<File> {
   const heic = isHeicPhoto(file);
   if (!heic && !ACCEPTED_TYPES.includes(file.type))
-    throw new PhotoInputError(
-      "Please choose a JPG, PNG, WebP, HEIC, or HEIF photo.",
-    );
+    throw new PhotoInputError("Please choose a JPG, PNG, or WebP photo.");
   if (!file.size || file.size > MAX_FILE_SIZE)
     throw new PhotoInputError(
       "Please choose a non-empty photo that is 15 MB or smaller.",
